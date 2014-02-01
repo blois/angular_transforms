@@ -6,7 +6,8 @@ environment:
   sdk: '>=1.0.0'
 dependencies:
   analyzer: '>=0.10.0 <=0.12.0'
-  angular: '>=0.9.5 <1.0.0'
+  angular:
+    path: ../angular.dart
   barback: ">=0.9.0 <0.12.0"
   collection: '>=0.9.1 <1.0.0'
   di: '>=0.0.32 <0.1.0'

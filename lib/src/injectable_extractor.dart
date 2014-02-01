@@ -1,10 +1,8 @@
-library angular_transformers.constructor_extractor;
+library angular_transformers.injectable_extractor;
 
 import 'package:analyzer/src/generated/ast.dart';
-import 'package:analyzer/src/generated/element.dart';
 import 'package:angular_transformers/options.dart';
 import 'package:barback/barback.dart';
-import 'package:path/path.dart' as path;
 import 'asset_sources.dart';
 
 class ConstructorsInfo {
@@ -250,12 +248,12 @@ TypeName _resolveParameterType(ClassDeclaration cls,
 // TODO: replace with ClassDeclaration.getField once we can move to
 // analyzer V 0.11+
 VariableDeclaration _getField(ClassDeclaration cls, String name) {
-  for (ClassMember classMember in cls.members) {
+  for (var classMember in cls.members) {
     if (classMember is FieldDeclaration) {
       FieldDeclaration fieldDeclaration = classMember;
-      NodeList<VariableDeclaration> fields = fieldDeclaration.fields.variables;
-      for (VariableDeclaration field in fields) {
-        SimpleIdentifier fieldName = field.name;
+      var fields = fieldDeclaration.fields.variables;
+      for (var field in fields) {
+        var fieldName = field.name;
         if (fieldName != null && name == fieldName.name) {
           return field;
         }
@@ -268,10 +266,10 @@ VariableDeclaration _getField(ClassDeclaration cls, String name) {
 // TODO: replace with ClassDeclaration.getConstructor once we can move to
 // analyzer V 0.11+
 ConstructorDeclaration _getConstructor(ClassDeclaration cls, String name) {
-  for (ClassMember classMember in cls.members) {
+  for (vae classMember in cls.members) {
     if (classMember is ConstructorDeclaration) {
       ConstructorDeclaration constructor = classMember;
-      SimpleIdentifier constructorName = constructor.name;
+      var constructorName = constructor.name;
       if (name == null && constructorName == null) {
         return constructor;
       }

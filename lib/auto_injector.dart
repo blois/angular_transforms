@@ -54,7 +54,7 @@ import 'package:di/dynamic_injector.dart';
 @MirrorsUsed(override: '*')
 import 'dart:mirrors' show MirrorsUsed;
 
-Module defaultInjectorModule() => new Module()
+Module get defaultInjectorModule => new Module()
     ..type(Injector, implementedBy: DynamicInjector);
 
 Injector defaultAutoInjector({List<Module> modules, String name,
@@ -68,4 +68,7 @@ Injector _defaultInjectorFactory(List<Module> modules) =>
     new DynamicInjector(modules: modules);
 
 // Empty since the default is the dynamic expression module.
-Module defaultExpressionModule() => new Module();
+Module get defaultExpressionModule => new Module();
+
+// Empty since the default is the dynamic metadata module.
+Module defaultMetadataModule() => new Module();

@@ -133,14 +133,13 @@ import 'package:angular/angular.dart';
 import 'package:angular/core/parser/parser.dart';
 import 'package:angular/core/parser/utils.dart';
 
-Module expressionModule() => new Module()
+Module get expressionModule => new Module()
     ..type(Parser, implementedBy: StaticParser)
     ..type(StaticParserFunctions,
         implementedBy: GeneratedStaticParserFunctions)
     ..value(DynamicParser, new _UnsupportedDynamicParser());
 
 class _UnsupportedDynamicParser implements DynamicParser {
-  _UnsupportedDynamicParser();
   Expression call(String input) =>
       throw new StateError(
           'Should not be evaluating \$input with the dynamic parser');

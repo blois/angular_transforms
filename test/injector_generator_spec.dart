@@ -2,15 +2,16 @@ library angular_transformers.test.injector_generator_spec;
 
 import 'package:angular_transformers/options.dart';
 import 'package:angular_transformers/transformer.dart';
+import 'package:angular_transformers/src/injector_generator.dart';
 import 'jasmine_syntax.dart';
 import 'common.dart';
 
 main() {
   describe('generator', () {
-    var phases = new AngularTransformerGroup(
-        new TransformOptions(dartEntry: 'web/main.dart',
-          injectableAnnotations: ['NgInjectableService'],
-          injectableTypes: ['test_lib.Engine'])).phases;
+    var phases = [[new InjectorGenerator(new TransformOptions(
+        dartEntry: 'web/main.dart',
+        injectableAnnotations: ['NgInjectableService'],
+        injectableTypes: ['test_lib.Engine']))]];
 
     it('transforms imports', () {
       return transform(phases,
@@ -498,7 +499,7 @@ Injector createStaticInjector({List<Module> modules, String name,
       allowImplicitInjection: allowImplicitInjection,
       typeFactories: factories);
 
-Module staticInjectorModule() => new Module()
+Module get staticInjectorModule => new Module()
     ..value(Injector, createStaticInjector(name: 'Static Injector'));
 
 final Map<Type, TypeFactory> factories = <Type, TypeFactory>{''';

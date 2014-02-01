@@ -2,6 +2,7 @@ library angular_transformers.transformer;
 
 import 'package:angular_transformers/src/injector_generator.dart';
 import 'package:angular_transformers/src/expression_generator.dart';
+import 'package:angular_transformers/src/metadata_generator.dart';
 import 'package:angular_transformers/options.dart';
 import 'package:barback/barback.dart';
 
@@ -71,5 +72,6 @@ List<List<Transformer>> _createDeployPhases(TransformOptions options) {
   return [
     [new ExpressionGenerator(options)],
     [new InjectorGenerator(options)],
+    [new MetadataGenerator(options)],
   ];
 }

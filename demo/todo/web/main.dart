@@ -18,7 +18,8 @@ main() {
   var module = new Module()
     ..type(TodoController)
     ..type(PlaybackHttpBackendConfig)
-    ..install(defaultExpressionModule());
+    ..install(defaultExpressionModule)
+    ..install(defaultMetadataModule);
 
   // If these is a query in the URL, use the server-backed
   // TodoController.  Otherwise, use the stored-data controller.

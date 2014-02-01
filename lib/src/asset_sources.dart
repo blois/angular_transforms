@@ -101,7 +101,7 @@ CompilationUnit _parseCompilationUnit(String code) {
  * list to be visited.
  */
 void _processImports(DartSource source, List<AssetId> visited,
-    List<AssetId> toVisit, Map<AssetId, DartSource> incomplete) {
+    List<AssetId> toVisit, Map<AssetId, List<DartSource>> incomplete) {
   source.compilationUnit.directives.forEach((Directive directive) {
     if (directive is ImportDirective ||
         directive is PartDirective ||

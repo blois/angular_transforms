@@ -10,7 +10,7 @@ import 'package:source_maps/refactor.dart';
 
 import 'asset_sources.dart';
 import 'common.dart';
-import 'constructor_extractor.dart';
+import 'injectable_extractor.dart';
 
 const String GENERATED_INJECTOR = 'generated_static_injector.dart';
 
@@ -64,8 +64,6 @@ class InjectorGenerator extends Transformer {
           new AssetId(asset.id.package, 'lib/$GENERATED_INJECTOR');
       transform.addOutput(
             new Asset.fromString(outputId, outputBuffer.toString()));
-
-      //print(outputBuffer);
     });
   }
 
@@ -128,7 +126,7 @@ Injector createStaticInjector({List<Module> modules, String name,
       allowImplicitInjection: allowImplicitInjection,
       typeFactories: factories);
 
-Module staticInjectorModule() => new Module()
+Module get staticInjectorModule => new Module()
     ..value(Injector, createStaticInjector(name: 'Static Injector'));
 
 final Map<Type, TypeFactory> factories = <Type, TypeFactory>{
