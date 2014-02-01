@@ -1,0 +1,13 @@
+name: todo
+version: 0.0.1
+dependencies:
+  angular: any
+  browser: any
+  unittest: any
+  inject: any
+  angular_transformers:
+    path: ../..
+transformers:
+- angular_transformers:
+    dart_entry: web/main.dart
+    html_files: web/index.html
