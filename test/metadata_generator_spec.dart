@@ -64,6 +64,22 @@ $FOOTER
 '''
           });
     });
+/*
+    it('should warn on un-importable files', () {
+      return transform(phases,
+          inputs: {
+            'a|web/main.dart': '''import 'a.dart'; ''',
+            'a|web/a.dart':
+'''
+@NgDirective(selector: r'[*=/{{.*}}/]')
+class Engine {}
+'''
+          },
+          results: {},
+          messages: ['a|web/a.dart cannot contain annotated '
+          'because it cannot be imported (must be in a lib folder).']
+          );
+    });*/
   });
 }
 

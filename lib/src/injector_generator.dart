@@ -43,19 +43,19 @@ class InjectorGenerator extends Transformer {
       _transformPrimarySource(transform, source);
     });
 
-    return sources.map((s) => gatherConstructors(s, options))
-        .where((c) => c != null).toList().then((constructors) {
+    return sources.map((s) => gatherLibraries(s, options))
+        .where((l) => l != null).toList().then((libs) {
       var index = 0;
-      for (var constructor in constructors) {
+      for (var lib in libs) {
         var prefix = 'import_${index++}';
-        constructor.writeImports(outputBuffer, prefix);
+        lib.writeImports(outputBuffer, prefix);
       }
       _writePreamble(outputBuffer);
 
       index = 0;
-      for (var constructor in constructors) {
+      for (var lib in libs) {
         var prefix = 'import_${index++}';
-        constructor.writeGenerators(outputBuffer, prefix);
+        lib.writeGenerators(outputBuffer, prefix);
       }
 
       _writeFooter(outputBuffer);

@@ -4,13 +4,14 @@ import 'package:analyzer/src/generated/ast.dart';
 import 'package:angular_transformers/options.dart';
 import 'package:barback/barback.dart';
 import 'asset_sources.dart';
+import 'common.dart';
 
-class ConstructorsInfo {
+class LibraryInfo {
   final AssetId id;
   final List<ImportDirective> imports = <ImportDirective>[];
   final List<Constructor> constructors = <Constructor>[];
 
-  ConstructorsInfo(this.id);
+  LibraryInfo(this.id);
 
   void writeImports(StringSink sink, String prefix) {
     // All non-library files should be filtered elsewhere.
@@ -79,9 +80,9 @@ class _ImplicitConstructor implements Constructor {
   List<FormalParameter> get parameters => [];
 }
 
-ConstructorsInfo gatherConstructors(DartSource source,
+LibraryInfo gatherLibraries(DartSource source,
     TransformOptions options) {
-  var visitor = new _ASTVisitor(new ConstructorsInfo(source.assetId), source,
+  var visitor = new _ASTVisitor(new LibraryInfo(source.assetId), source,
       options);
 
   for (var compilationUnit in source.compilationUnits) {
@@ -89,7 +90,7 @@ ConstructorsInfo gatherConstructors(DartSource source,
   }
 
   if (!visitor.info.constructors.isEmpty) {
-    if (!_canImport(visitor.info.id)) {
+    if (!canImportAsset(visitor.info.id)) {
       var cls = visitor.info.constructors.first.clazz;
       source.logger.warning('${cls.name.name} cannot be injected because '
           'the containing file cannot be imported.',
@@ -102,7 +103,7 @@ ConstructorsInfo gatherConstructors(DartSource source,
 }
 
 class _ASTVisitor extends GeneralizingASTVisitor {
-  final ConstructorsInfo info;
+  final LibraryInfo info;
   final DartSource source;
   final TransformOptions options;
 
@@ -227,8 +228,6 @@ class _ASTVisitor extends GeneralizingASTVisitor {
   }
 }
 
-bool _canImport(AssetId id) => id.path.startsWith('lib/');
-
 TypeName _resolveParameterType(ClassDeclaration cls,
     FormalParameter parameter) {
   if (parameter is FieldFormalParameter) {
@@ -266,7 +265,7 @@ VariableDeclaration _getField(ClassDeclaration cls, String name) {
 // TODO: replace with ClassDeclaration.getConstructor once we can move to
 // analyzer V 0.11+
 ConstructorDeclaration _getConstructor(ClassDeclaration cls, String name) {
-  for (vae classMember in cls.members) {
+  for (var classMember in cls.members) {
     if (classMember is ConstructorDeclaration) {
       ConstructorDeclaration constructor = classMember;
       var constructorName = constructor.name;

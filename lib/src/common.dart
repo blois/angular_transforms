@@ -2,6 +2,7 @@ library angular_transformers.common;
 
 import 'package:analyzer/src/generated/ast.dart';
 import 'package:source_maps/refactor.dart';
+import 'package:barback/barback.dart';
 
 /**
  * Transforms all simple identifiers of [name] to be [replacement].
@@ -49,3 +50,5 @@ class _IdentifierTransformer extends GeneralizingASTVisitor {
     return super.visitNode(node);
   }
 }
+
+bool canImportAsset(AssetId id) => id.path.startsWith('lib/');

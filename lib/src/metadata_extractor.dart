@@ -4,6 +4,7 @@ import 'package:analyzer/src/generated/ast.dart';
 import 'package:angular_transformers/options.dart';
 import 'package:barback/barback.dart';
 import 'asset_sources.dart';
+import 'common.dart';
 
 class LibraryInfo {
   final AssetId assetId;
@@ -88,10 +89,10 @@ LibraryInfo gatherAnnotatedLibraries(DartSource source, TransformOptions options
   }
 
   if (!visitor.lib.classes.isEmpty) {
-    if (!_canImport(source.assetId)) {
+    if (!canImportAsset(source.assetId)) {
       var cls = visitor.lib.classes.first.clazz;
       source.logger.warning('${visitor.info.id} cannot contain annotated '
-          'classes because it cannot be imported (must be in a lib folder).',
+          'because it cannot be imported (must be in a lib folder).',
           asset: source.assetId, span: source.getSpan(cls));
       return null;
     }
@@ -99,8 +100,6 @@ LibraryInfo gatherAnnotatedLibraries(DartSource source, TransformOptions options
   }
   return null;
 }
-
-bool _canImport(AssetId id) => id.path.startsWith('lib/');
 
 class _ASTVisitor extends GeneralizingASTVisitor {
   final LibraryInfo lib;

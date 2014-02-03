@@ -64,9 +64,6 @@ Injector defaultAutoInjector({List<Module> modules, String name,
       name: name,
       allowImplicitInjection: allowImplicitInjection);
 
-Injector _defaultInjectorFactory(List<Module> modules) =>
-    new DynamicInjector(modules: modules);
-
 // Empty since the default is the dynamic expression module.
 Module get defaultExpressionModule => new Module();
 
