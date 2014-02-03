@@ -8,7 +8,7 @@ import 'package:di/dynamic_injector.dart';
 import 'package:path/path.dart' as path;
 import 'package:source_maps/refactor.dart';
 
-import 'asset_sources.dart';
+import 'asset_libraries.dart';
 import 'common.dart';
 import 'injectable_extractor.dart';
 
@@ -36,14 +36,14 @@ class InjectorGenerator extends Transformer {
 
     _writeStaticInjectorHeader(asset.id, outputBuffer);
 
-    var sources = crawlSources(transform, asset);
-    // The first source file is always the entry file, update that to include
+    var libs = crawlLibraries(transform, asset);
+    // The first lib is always the entry file, update that to include
     // the generated expressions.
-    sources.first.then((source) {
-      _transformPrimarySource(transform, source);
+    libs.first.then((lib) {
+      _transformPrimarySource(transform, lib);
     });
 
-    return sources.map((s) => gatherLibraries(s, options))
+    return libs.map((s) => gatherAnnotatedLibraries(s, options))
         .where((l) => l != null).toList().then((libs) {
       var index = 0;
       for (var lib in libs) {
@@ -72,23 +72,23 @@ class InjectorGenerator extends Transformer {
    * and modify all references to defaultAutoInjector to refer to the generated
    * static injector.
    */
-  void _transformPrimarySource(Transform transform, DartSource source) {
-    var transaction = new TextEditTransaction(source.text, source.sourceFile);
+  void _transformPrimarySource(Transform transform, DartLibrary lib) {
+    var transaction = new TextEditTransaction(lib.text, lib.sourceFile);
 
-    transformIdentifiers(transaction, source.compilationUnit,
+    transformIdentifiers(transaction, lib.compilationUnit,
         'defaultAutoInjector',
         'generated_static_injector.createStaticInjector');
 
-    transformIdentifiers(transaction, source.compilationUnit,
+    transformIdentifiers(transaction, lib.compilationUnit,
         'defaultInjectorModule',
         'generated_static_injector.staticInjectorModule');
 
     if (transaction.hasEdits) {
-      addImport(transaction, source.compilationUnit,
-          'package:${source.assetId.package}/$GENERATED_INJECTOR',
+      addImport(transaction, lib.compilationUnit,
+          'package:${lib.assetId.package}/$GENERATED_INJECTOR',
           'generated_static_injector');
 
-      var id = source.assetId;
+      var id = lib.assetId;
       var printer = transaction.commit();
       var url = id.path.startsWith('lib/')
           ? 'package:${id.package}/${id.path.substring(4)}' : id.path;

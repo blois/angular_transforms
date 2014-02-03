@@ -3,7 +3,7 @@ library angular_transformers.injectable_extractor;
 import 'package:analyzer/src/generated/ast.dart';
 import 'package:angular_transformers/options.dart';
 import 'package:barback/barback.dart';
-import 'asset_sources.dart';
+import 'asset_libraries.dart';
 import 'common.dart';
 
 class LibraryInfo {
@@ -80,21 +80,21 @@ class _ImplicitConstructor implements Constructor {
   List<FormalParameter> get parameters => [];
 }
 
-LibraryInfo gatherLibraries(DartSource source,
+LibraryInfo gatherAnnotatedLibraries(DartLibrary lib,
     TransformOptions options) {
-  var visitor = new _ASTVisitor(new LibraryInfo(source.assetId), source,
+  var visitor = new _ASTVisitor(new LibraryInfo(lib.assetId), lib,
       options);
 
-  for (var compilationUnit in source.compilationUnits) {
+  for (var compilationUnit in lib.compilationUnits) {
     compilationUnit.visitChildren(visitor);
   }
 
   if (!visitor.info.constructors.isEmpty) {
     if (!canImportAsset(visitor.info.id)) {
       var cls = visitor.info.constructors.first.clazz;
-      source.logger.warning('${cls.name.name} cannot be injected because '
+      lib.logger.warning('${cls.name.name} cannot be injected because '
           'the containing file cannot be imported.',
-          asset: source.assetId, span: source.getSpan(cls));
+          asset: lib.assetId, span: lib.getSpan(cls));
       return null;
     }
     return visitor.info;
@@ -104,10 +104,10 @@ LibraryInfo gatherLibraries(DartSource source,
 
 class _ASTVisitor extends GeneralizingASTVisitor {
   final LibraryInfo info;
-  final DartSource source;
+  final DartLibrary lib;
   final TransformOptions options;
 
-  _ASTVisitor(this.info, this.source, this.options);
+  _ASTVisitor(this.info, this.lib, this.options);
 
   // Skip everything other than imports and classes.
   visitNode(ASTNode node) {}
@@ -133,16 +133,16 @@ class _ASTVisitor extends GeneralizingASTVisitor {
       // If the class is abstract then it must have a factory constructor.
       if (cls.abstractKeyword != null &&
           (constructor == null || constructor.factoryKeyword == null)) {
-        source.logger.warning('${cls.name.name} cannot be injected '
+        lib.logger.warning('${cls.name.name} cannot be injected '
             'because it is an abstract type with no factory constructor.',
-            asset: source.assetId, span: source.getSpan(cls));
+            asset: lib.assetId, span: lib.getSpan(cls));
         return;
       }
       if (constructor == null) {
         if (cls.members.where((m) => m is ConstructorDeclaration).length > 0) {
-          source.logger.warning('${cls.name.name} does not have a default '
+          lib.logger.warning('${cls.name.name} does not have a default '
               'constructor',
-              asset: source.assetId, span: source.getSpan(cls));
+              asset: lib.assetId, span: lib.getSpan(cls));
           return;
         }
         // Add a dummy implicit constructor.
@@ -155,15 +155,15 @@ class _ASTVisitor extends GeneralizingASTVisitor {
       return;
     }
     if (constructors.length > 1) {
-      source.logger.warning('${cls.name.name} can only have a single '
+      lib.logger.warning('${cls.name.name} can only have a single '
           'injected constructor.',
-          asset: source.assetId, span: source.getSpan(cls));
+          asset: lib.assetId, span: lib.getSpan(cls));
       return;
     }
     var constructor = constructors.single;
     if (constructor.name != null) {
-      source.logger.warning('Named constructors cannot be injected.',
-          asset: source.assetId, span: source.getSpan(constructor));
+      lib.logger.warning('Named constructors cannot be injected.',
+          asset: lib.assetId, span: lib.getSpan(constructor));
       return;
     }
     if (!validateConstructor(cls, constructor)) {
@@ -175,23 +175,23 @@ class _ASTVisitor extends GeneralizingASTVisitor {
   bool validateConstructor(ClassDeclaration cls,
       ConstructorDeclaration constructor) {
     if (isParameterized(cls)) {
-      source.logger.warning('${cls.name} cannot be injected because it is a '
+      lib.logger.warning('${cls.name} cannot be injected because it is a '
           'parameterized type.',
-          asset: source.assetId, span: source.getSpan(cls));
+          asset: lib.assetId, span: lib.getSpan(cls));
       return false;
     }
     for (var param in constructor.parameters.parameters) {
       var type = _resolveParameterType(cls, param);
       if (type == null) {
-        source.logger.warning('${cls.name} cannot be injected '
+        lib.logger.warning('${cls.name} cannot be injected '
           'because parameter type $param cannot be resolved.',
-          asset: source.assetId, span: source.getSpan(param));
+          asset: lib.assetId, span: lib.getSpan(param));
         return false;
       }
       if (type.typeArguments != null) {
-        source.logger.warning('${cls.name} cannot be injected '
+        lib.logger.warning('${cls.name} cannot be injected '
           'because $param is a parameterized type.',
-          asset: source.assetId, span: source.getSpan(param));
+          asset: lib.assetId, span: lib.getSpan(param));
         return false;
       }
     }

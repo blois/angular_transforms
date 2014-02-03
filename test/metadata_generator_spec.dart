@@ -7,10 +7,7 @@ import 'jasmine_syntax.dart';
 import 'common.dart';
 
 // Test for private types
-// Test for private members
 // Test for prefixed imports on class annotations.
-// Test for multiple annotations on members
-// Test for getter/setter combos
 
 main() {
   describe('metadata_generator', () {
@@ -64,7 +61,7 @@ $FOOTER
 '''
           });
     });
-/*
+
     it('should warn on un-importable files', () {
       return transform(phases,
           inputs: {
@@ -75,11 +72,49 @@ $FOOTER
 class Engine {}
 '''
           },
+          results: EMPTY_METADATA,
+          messages: ['warning: a|web/a.dart cannot contain annotated because '
+              'it cannot be imported (must be in a lib folder). '
+              '(web/a.dart 0 0)']);
+    });
+
+    it('should warn on multiple annotations', () {
+      return transform(phases,
+          inputs: {
+            'a|web/main.dart': '''import 'package:a/a.dart'; ''',
+            'a|lib/a.dart':
+'''
+class Engine {
+  @NgCallback('callback')
+  @NgOneWay('another-expression')
+  set callback(Function) {}
+}
+'''
+          },
           results: {},
-          messages: ['a|web/a.dart cannot contain annotated '
-          'because it cannot be imported (must be in a lib folder).']
-          );
-    });*/
+          messages: ['warning: callback can only have one annotation. '
+              '(lib/a.dart 1 2)']);
+    });
+
+    it('should warn on multiple annotations (across getter/setter)', () {
+      return transform(phases,
+          inputs: {
+            'a|web/main.dart': '''import 'package:a/a.dart'; ''',
+            'a|lib/a.dart':
+'''
+class Engine {
+  @NgCallback('callback')
+  set callback(Function) {}
+
+  @NgOneWay('another-expression')
+  get callback() {}
+}
+'''
+          },
+          results: {},
+          messages: ['warning: callback can only have one annotation. '
+              '(lib/a.dart 4 2)']);
+    });
   });
 }
 
@@ -124,3 +159,12 @@ final Map<Type, Map<String, AttrFieldAnnotation>> _memberAnnotations = {''';
 
 const String FOOTER = '''
 };''';
+
+const Map EMPTY_METADATA = const {
+  'a|lib/generated_metadata.dart': '''
+$HEADER
+$BOILER_PLATE
+$MEMBER_PREAMBLE
+$FOOTER
+'''
+};

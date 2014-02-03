@@ -1,6 +1,7 @@
 library angular_transformers.expression_generator;
 
 import 'dart:async';
+import 'package:angular/core/module.dart';
 import 'package:angular/core/parser/parser.dart';
 import 'package:angular/tools/parser_generator/generator.dart';
 import 'package:angular_transformers/options.dart';
@@ -11,7 +12,7 @@ import 'package:path/path.dart' as path;
 import 'package:source_maps/refactor.dart';
 
 import 'source_metadata_extractor.dart';
-import 'asset_sources.dart';
+import 'asset_libraries.dart';
 import 'common.dart';
 
 const String GENERATED_EXPRESSIONS = 'generated_static_expressions.dart';
@@ -47,20 +48,21 @@ class ExpressionGenerator extends Transformer {
     _writeStaticExpressionHeader(asset.id, outputBuffer);
 
     var module = new Module()
+      ..type(FilterMap, implementedBy: NullFilterMap)
       ..type(Parser, implementedBy: DynamicParser)
       ..type(ParserBackend, implementedBy: DynamicParserBackend)
       ..value(SourcePrinter, new _StreamPrinter(outputBuffer));
     var injector =
         new DynamicInjector(modules: [module], allowImplicitInjection: true);
 
-    var sources = crawlSources(transform, asset);
-    // The first source file is always the entry file, update that to include
+    var libs = crawlLibraries(transform, asset);
+    // The first lib file is always the entry file, update that to include
     // the generated expressions.
-    sources.first.then((source) {
-      _transformPrimarySource(transform, source);
+    libs.first.then((lib) {
+      _transformPrimarySource(transform, lib);
     });
 
-    var units = sources.expand((source) => source.compilationUnits);
+    var units = libs.expand((lib) => lib.compilationUnits);
     var html = _getHtmlSources(transform);
 
     return gatherExpressions(units, html).then((expressions) {
@@ -78,19 +80,19 @@ class ExpressionGenerator extends Transformer {
    * and modify all references to NG_EXPRESSION_MODULE to refer to the generated
    * expression.
    */
-  void _transformPrimarySource(Transform transform, DartSource source) {
-    var transaction = new TextEditTransaction(source.text, source.sourceFile);
+  void _transformPrimarySource(Transform transform, DartLibrary lib) {
+    var transaction = new TextEditTransaction(lib.text, lib.sourceFile);
 
-    transformIdentifiers(transaction, source.compilationUnit,
+    transformIdentifiers(transaction, lib.compilationUnit,
         'defaultExpressionModule',
         'generated_static_expressions.expressionModule');
 
     if (transaction.hasEdits) {
-      addImport(transaction, source.compilationUnit,
-          'package:${source.assetId.package}/$GENERATED_EXPRESSIONS',
+      addImport(transaction, lib.compilationUnit,
+          'package:${lib.assetId.package}/$GENERATED_EXPRESSIONS',
           'generated_static_expressions');
 
-      var id = source.assetId;
+      var id = lib.assetId;
       var printer = transaction.commit();
       var url = id.path.startsWith('lib/')
           ? 'package:${id.package}/${id.path.substring(4)}' : id.path;

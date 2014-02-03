@@ -3,7 +3,7 @@ library angular_transformers.metadata_extractor;
 import 'package:analyzer/src/generated/ast.dart';
 import 'package:angular_transformers/options.dart';
 import 'package:barback/barback.dart';
-import 'asset_sources.dart';
+import 'asset_libraries.dart';
 import 'common.dart';
 
 class LibraryInfo {
@@ -80,20 +80,20 @@ class AnnotatedClass {
   }
 }
 
-LibraryInfo gatherAnnotatedLibraries(DartSource source, TransformOptions options) {
-  var visitor = new _ASTVisitor(new LibraryInfo(source.assetId), source,
+LibraryInfo gatherAnnotatedLibraries(DartLibrary lib, TransformOptions options) {
+  var visitor = new _ASTVisitor(new LibraryInfo(lib.assetId), lib,
       options);
 
-  for (var compilationUnit in source.compilationUnits) {
+  for (var compilationUnit in lib.compilationUnits) {
     compilationUnit.visitChildren(visitor);
   }
 
   if (!visitor.lib.classes.isEmpty) {
-    if (!canImportAsset(source.assetId)) {
-      var cls = visitor.lib.classes.first.clazz;
-      source.logger.warning('${visitor.info.id} cannot contain annotated '
+    if (!canImportAsset(lib.assetId)) {
+      var cls = visitor.lib.classes.first.cls;
+      lib.logger.warning('${visitor.lib.assetId} cannot contain annotated '
           'because it cannot be imported (must be in a lib folder).',
-          asset: source.assetId, span: source.getSpan(cls));
+          asset: lib.assetId, span: lib.getSpan(cls));
       return null;
     }
     return visitor.lib;
@@ -103,7 +103,7 @@ LibraryInfo gatherAnnotatedLibraries(DartSource source, TransformOptions options
 
 class _ASTVisitor extends GeneralizingASTVisitor {
   final LibraryInfo lib;
-  final DartSource source;
+  final DartLibrary source;
   final TransformOptions options;
 
   _ASTVisitor(this.lib, this.source, this.options);
@@ -155,7 +155,8 @@ class _ASTVisitor extends GeneralizingASTVisitor {
           }
 
           if (annotatedClass.members.containsKey(memberName)) {
-            print('ERROR!');
+            source.logger.warning('$memberName can only have one annotation.',
+                asset: lib.assetId, span: source.getSpan(member));
           }
           annotatedClass.members[memberName] = annotation;
         }

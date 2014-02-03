@@ -105,13 +105,10 @@ class TestHelper implements PackageProvider {
   }
 
   Future checkAll(Map<String, String> files) {
-    var futures = [];
-    files.forEach((k, v) {
-      futures.add(check(k, v));
-    });
-    return Future.wait(futures).then((_) {
+    return barback.results.first.then((_) {
       // We only check messages when an expectation is provided.
       if (messages == null) return;
+
       expect(messages.length, messagesSeen,
           reason: 'less messages than expected');
     });

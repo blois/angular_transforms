@@ -1,4 +1,4 @@
-library angular_transformer.asset_sources;
+library angular_transformer.asset_libraries;
 
 import 'dart:async';
 import 'package:analyzer/src/generated/ast.dart';
@@ -13,14 +13,14 @@ import 'package:source_maps/span.dart' show SourceFile, Span;
 /**
  * Simple wrapper for a parsed Dart source file.
  */
-class DartSource {
+class DartLibrary {
   final Transform _transform;
   final CompilationUnit compilationUnit;
   final AssetId assetId;
   final String text;
   final Map<AssetId, CompilationUnit> parts = <AssetId, CompilationUnit>{};
 
-  DartSource(this._transform, this.compilationUnit, this.assetId, this.text);
+  DartLibrary(this._transform, this.compilationUnit, this.assetId, this.text);
 
   Span getSpan(ASTNode node) => sourceFile.span(node.offset, node.end);
   SourceFile get sourceFile => new SourceFile.text(assetId.path, text);
@@ -35,16 +35,16 @@ class DartSource {
 }
 
 /**
- * Crawls all of the Dart sources referenced by the provided asset.
+ * Crawls all of the Dart libraries referenced by the provided asset.
  * This excludes all dart: files.
  */
-Stream<DartSource> crawlSources(Transform transform, Asset entryPoint) {
+Stream<DartLibrary> crawlLibraries(Transform transform, Asset entryPoint) {
   List<AssetId> visited = <AssetId>[];
   List<AssetId> toVisit = <AssetId>[entryPoint.id];
   // List of all libraries which have outstanding parts.
-  Map<AssetId, List<DartSource>> incomplete = {};
+  Map<AssetId, List<DartLibrary>> incomplete = {};
 
-  var controller = new StreamController<DartSource>.broadcast();
+  var controller = new StreamController<DartLibrary>.broadcast();
 
   Future visitNext() {
     if (toVisit.length == 0) {
@@ -56,19 +56,19 @@ Stream<DartSource> crawlSources(Transform transform, Asset entryPoint) {
     return transform.readInputAsString(id).then((contents) {
       var cu = _parseCompilationUnit(contents);
       if (incomplete.containsKey(id)) {
-        for (var source in incomplete[id]) {
-          source.parts[id] = cu;
-          if (source.isComplete) {
-            controller.add(source);
+        for (var lib in incomplete[id]) {
+          lib.parts[id] = cu;
+          if (lib.isComplete) {
+            controller.add(lib);
           }
         }
         incomplete.remove(id);
       } else {
-        var source = new DartSource(transform, cu, id, contents);
-        _processImports(source, visited, toVisit, incomplete);
+        var lib = new DartLibrary(transform, cu, id, contents);
+        _processImports(lib, visited, toVisit, incomplete);
 
-        if (source.isComplete) {
-          controller.add(source);
+        if (lib.isComplete) {
+          controller.add(lib);
         }
       }
 
@@ -100,28 +100,28 @@ CompilationUnit _parseCompilationUnit(String code) {
 /** Find all imports and parts which are referenced and add those to the
  * list to be visited.
  */
-void _processImports(DartSource source, List<AssetId> visited,
-    List<AssetId> toVisit, Map<AssetId, List<DartSource>> incomplete) {
-  source.compilationUnit.directives.forEach((Directive directive) {
+void _processImports(DartLibrary lib, List<AssetId> visited,
+    List<AssetId> toVisit, Map<AssetId, List<DartLibrary>> incomplete) {
+  lib.compilationUnit.directives.forEach((Directive directive) {
     if (directive is ImportDirective ||
         directive is PartDirective ||
         directive is ExportDirective) {
       UriBasedDirective import = directive;
-      var span = source.getSpan(directive);
-      var assetId = _resolve(source.assetId,
-          import.uri.stringValue, source.logger, span);
+      var span = lib.getSpan(directive);
+      var assetId = _resolve(lib.assetId,
+          import.uri.stringValue, lib.logger, span);
       if (assetId == null) return;
       if (!visited.contains(assetId) && !toVisit.contains(assetId)) {
         toVisit.add(assetId);
       }
 
       if (directive is PartDirective) {
-        source.parts[assetId] = null;
+        lib.parts[assetId] = null;
         var libs = incomplete[assetId];
         if (libs == null) {
-          incomplete[assetId] = [source];
+          incomplete[assetId] = [lib];
         } else {
-          libs.add(source);
+          libs.add(lib);
         }
       }
     }

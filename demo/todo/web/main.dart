@@ -1,6 +1,6 @@
 import 'package:angular/angular.dart';
 import 'package:angular/playback/playback_http.dart';
-import 'package:angular_transformers/auto_injector.dart';
+import 'package:angular_transformers/auto_modules.dart';
 import 'package:di/di.dart';
 import 'package:todo/todo.dart';
 
