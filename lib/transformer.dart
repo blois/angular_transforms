@@ -1,10 +1,13 @@
 library angular_transformers.transformer;
 
+import 'dart:io';
 import 'package:angular_transformers/src/injector_generator.dart';
 import 'package:angular_transformers/src/expression_generator.dart';
+import 'package:angular_transformers/src/resolver_transformer.dart';
 import 'package:angular_transformers/src/metadata_generator.dart';
 import 'package:angular_transformers/options.dart';
 import 'package:barback/barback.dart';
+import 'package:path/path.dart' as path;
 
 
 class AngularTransformerGroup implements TransformerGroup {
@@ -28,6 +31,12 @@ TransformOptions _parseSettings(BarbackSettings settings) {
       'angular.core.parser.static_parser.StaticParser'];
   injectableTypes.addAll(_readStringListValue(args, 'injectable_types'));
 
+  var sdkDir = _readStringValue(args, 'dart_sdk', required: false);
+  if (sdkDir == null) {
+    // Assume the Pub executable is always coming from the SDK.
+    sdkDir =  path.dirname(path.dirname(Platform.executable));
+  }
+
   return new TransformOptions(
       dartEntry: _readStringValue(args, 'dart_entry'),
       htmlFiles: _readStringListValue(args, 'html_files'),
@@ -35,10 +44,12 @@ TransformOptions _parseSettings(BarbackSettings settings) {
       injectableTypes: injectableTypes);
 }
 
-_readStringValue(Map args, String name, [bool required = true]) {
+_readStringValue(Map args, String name, {bool required: true}) {
   var value = args[name];
-  if (value == null && required) {
-    print('angular_transformer "$name" has no value.');
+  if (value == null) {
+    if (required) {
+      print('angular_transformer "$name" has no value.');
+    }
     return null;
   }
   if (value is! String) {
@@ -70,6 +81,7 @@ _readStringListValue(Map args, String name) {
 
 List<List<Transformer>> _createDeployPhases(TransformOptions options) {
   return [
+    [new ResolverTransformer(options)],
     [new ExpressionGenerator(options)],
     [new InjectorGenerator(options)],
     [new MetadataGenerator(options)],

@@ -32,9 +32,16 @@ class TransformOptions {
    */
   final Set<String> injectableTypes;
 
-  TransformOptions({String dartEntry, List<String> htmlFiles,
-    List<String> injectableAnnotations, List<String> injectableTypes})
+  /**
+   * Path to the Dart SDK directory, for resolving Dart libraries.
+   */
+  final String sdkDirectory;
+
+  TransformOptions({String dartEntry,
+      String sdkDirectory, List<String> htmlFiles,
+      List<String> injectableAnnotations, List<String> injectableTypes})
     : this.dartEntry = _systemToAssetPath(dartEntry),
+      this.sdkDirectory = sdkDirectory,
       this.htmlFiles = htmlFiles != null ? htmlFiles : [],
       this.injectableAnnotations =
           injectableAnnotations != null ? injectableAnnotations : [],
