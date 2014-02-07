@@ -1,12 +1,10 @@
 library angular_transformer.resolver;
 
 import 'dart:async';
-import 'dart:collection';
-import 'dart:mirrors' show reflect;
 import 'package:analyzer/src/generated/ast.dart';
 import 'package:analyzer/src/generated/element.dart';
 import 'package:analyzer/src/generated/engine.dart';
-import 'package:analyzer/src/generated/error.dart' show AnalysisErrorListener;
+import 'package:analyzer/src/generated/error.dart';
 import 'package:analyzer/src/generated/java_core.dart' show CharSequence;
 import 'package:analyzer/src/generated/java_io.dart' show JavaSystemIO, JavaFile;
 import 'package:analyzer/src/generated/parser.dart' show Parser;
@@ -223,7 +221,8 @@ class Resolver {
 
   /** Get the asset ID of the file containing the asset. */
   AssetId getSourceAssetId(Element element) {
-    if (element.source is _AssetBasedSource) return element.source.assetId;
+    var source = element.source;
+    if (source is _AssetBasedSource) return source.assetId;
     return null;
   }
 

@@ -2,9 +2,9 @@ library angular_transformers.test.injector_generator_spec;
 
 import 'dart:async';
 import 'package:angular_transformers/options.dart';
-import 'package:angular_transformers/transformer.dart';
 import 'package:angular_transformers/src/resolver_transformer.dart';
 import 'package:angular_transformers/src/injector_generator.dart';
+import 'package:barback/barback.dart';
 import 'jasmine_syntax.dart';
 import 'common.dart';
 

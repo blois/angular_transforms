@@ -48,8 +48,8 @@ class LibraryInfo {
 
 class AnnotatedClass {
   final ClassDeclaration cls;
-  final Map<String, AnnotationInfo> members = {};
-  final List<AnnotationInfo> annotations = [];
+  final Map<String, Annotation> members = {};
+  final List<Annotation> annotations = [];
 
   AnnotatedClass(this.cls);
 
