@@ -8,6 +8,15 @@ import 'package:barback/barback.dart';
 import 'resolver.dart';
 
 
+/**
+ * Transformer which maintains up-to-date resolved ASTs for the specified
+ * code entry points.
+ *
+ * This is used by transformers dependent on resolved ASTs which can reference
+ * this transformer to get the resolver needed.
+ *
+ * This transformer must be in a phase before any dependent transformers.
+ */
 class ResolverTransformer extends Transformer {
   final TransformOptions options;
   final Map<AssetId, Resolver> _resolvers = {};
@@ -17,9 +26,9 @@ class ResolverTransformer extends Transformer {
   Future<bool> isPrimary(Asset input) =>
       new Future.value(options.isDartEntry(input.id));
 
+  /** Updates the resolved AST for the primary input of the transform. */
   Future apply(Transform transform) {
-    var resolver = _resolvers.putIfAbsent(transform.primaryInput.id,
-        () => new Resolver(transform.primaryInput.id, options.sdkDirectory));
+    var resolver = getResolver(transform.primaryInput.id);
 
     return resolver.updateSources(transform).then((_) {
       transform.addOutput(transform.primaryInput);
@@ -27,15 +36,7 @@ class ResolverTransformer extends Transformer {
     });
   }
 
-  /// Get the LibraryElement for the specified entryPoint.
-  /// This transformer must have been applied with the entryPoint as a
-  /// primary asset in order for the library to be available.
-  LibraryElement getLibrary(AssetId entryPoint) {
-    return _resolvers[entryPoint].entryLibrary;
-  }
-
-  /// Primarily for testing.
-  Resolver getResolver(AssetId asset) {
-    return _resolvers[asset];
-  }
+  /** Get a resolver for the AST starting from [id]. */
+  Resolver getResolver(AssetId id) =>
+      _resolvers.putIfAbsent(id, () => new Resolver(id, options.sdkDirectory));
 }

@@ -1,10 +1,13 @@
 library di.test.tools.transform.common;
 
 import 'dart:async';
+import 'dart:io';
+import 'dart:convert' as convert;
 
 import 'package:barback/barback.dart';
 import 'package:stack_trace/stack_trace.dart';
 import 'package:unittest/unittest.dart';
+import 'package:path/path.dart' as path;
 
 String idToString(AssetId id) => '${id.package}|${id.path}';
 AssetId idFromString(String s) {
@@ -106,9 +109,15 @@ class TestHelper implements PackageProvider {
 
   Future checkAll(Map<String, String> files) {
     return barback.results.first.then((_) {
+      if (files == null) return null;
+      var futures = [];
+      files.forEach((k, v) {
+        futures.add(check(k, v));
+      });
+      return Future.wait(futures);
+    }).then((_) {
       // We only check messages when an expectation is provided.
       if (messages == null) return;
-
       expect(messages.length, messagesSeen,
           reason: 'less messages than expected');
     });
@@ -120,4 +129,16 @@ transform(List<List<Transformer>> phases,
     List<String> messages}) {
   var helper = new TestHelper(phases, inputs, messages)..run();
   return helper.checkAll(results).then((_) => helper.tearDown());
+}
+
+
+String get dartSdkDirectory {
+  if (path.split(Platform.executable).length == 1) {
+    // HACK: A single part, hope it's on the path.
+    var result = Process.runSync('which', ['dart'],
+        stdoutEncoding: convert.UTF8);
+    return path.dirname(path.dirname(result.stdout));
+  }
+  var absolute = path.absolute(Platform.executable);
+  return path.dirname(absolute);
 }

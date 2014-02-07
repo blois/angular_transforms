@@ -80,10 +80,11 @@ _readStringListValue(Map args, String name) {
 }
 
 List<List<Transformer>> _createDeployPhases(TransformOptions options) {
+  var resolver = new ResolverTransformer(options);
   return [
-    [new ResolverTransformer(options)],
+    [resolver],
     [new ExpressionGenerator(options)],
-    [new InjectorGenerator(options)],
+    [new InjectorGenerator(options, resolver)],
     [new MetadataGenerator(options)],
   ];
 }

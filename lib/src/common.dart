@@ -52,3 +52,4 @@ class _IdentifierTransformer extends GeneralizingASTVisitor {
 }
 
 bool canImportAsset(AssetId id) => id.path.startsWith('lib/');
+

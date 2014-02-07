@@ -1,6 +1,8 @@
 library angular_transformers.injector_generator;
 
 import 'dart:async';
+import 'package:analyzer/src/generated/ast.dart';
+import 'package:analyzer/src/generated/element.dart';
 import 'package:angular_transformers/options.dart';
 import 'package:barback/barback.dart';
 import 'package:di/di.dart';
@@ -10,61 +12,268 @@ import 'package:source_maps/refactor.dart';
 
 import 'asset_libraries.dart';
 import 'common.dart';
-import 'injectable_extractor.dart';
+import 'resolver.dart';
+import 'resolver_transformer.dart';
 
 const String GENERATED_INJECTOR = 'generated_static_injector.dart';
 
 class InjectorGenerator extends Transformer {
   final TransformOptions options;
+  final ResolverTransformer resolvers;
+  TransformLogger _logger;
+  Resolver _resolver;
+  List<TopLevelVariableElement> _injectableMetaConsts;
+  List<ConstructorElement> _injectableMetaConstructors;
 
-  InjectorGenerator(this.options);
+  InjectorGenerator(this.options, this.resolvers);
 
-  Future<bool> isPrimary(Asset input) => new Future.value(
-      options.isDartEntry(input.id));
+  Future<bool> isPrimary(Asset input) =>
+      new Future.value(options.isDartEntry(input.id));
 
   Future apply(Transform transform) {
-    return _generateStaticInjector(transform).then((_) {
-      // Workaround for dartbug.com/16120- do not send data across the isolate
-      // boundaries.
-      return null;
-    });
+    _logger = transform.logger;
+    _resolver = this.resolvers.getResolver(transform.primaryInput.id);
+
+    _resolveInjectableMetadata();
+    var constructors = _gatherConstructors();
+
+    var injectLibContents = _generateInjectLibrary(constructors);
+
+    var outputId = new AssetId(transform.primaryInput.id.package,
+        'lib/$GENERATED_INJECTOR');
+    transform.addOutput(new Asset.fromString(outputId, injectLibContents));
+
+    _logger = null;
+    return new Future.value(null);
+
+    // return _generateStaticInjector(transform).then((_) {
+    //   // Workaround for dartbug.com/16120- do not send data across the isolate
+    //   // boundaries.
+    //   return null;
+    // });
   }
 
-  Future<String> _generateStaticInjector(Transform transform) {
-    var asset = transform.primaryInput;
+  static const List<String> _defaultInjectableMetaConsts = const [
+    'inject.inject'
+  ];
+
+  void _resolveInjectableMetadata() {
+    _injectableMetaConsts = <TopLevelVariableElement>[];
+    _injectableMetaConstructors = <ConstructorElement>[];
+
+    for (var constName in _defaultInjectableMetaConsts) {
+      var variable = _resolver.getLibraryVariable(constName);
+      if (variable != null) {
+        _injectableMetaConsts.add(variable);
+      }
+    }
+
+    for (var metaName in options.injectableAnnotations) {
+      var variable = _resolver.getLibraryVariable(metaName);
+      if (variable != null) {
+        _injectableMetaConsts.add(variable);
+        break;
+      }
+      var cls = _resolver.getType(metaName);
+      if (cls != null && cls.unnamedConstructor != null) {
+        _injectableMetaConstructors.add(cls.unnamedConstructor);
+        break;
+      }
+      _logger.warning('Unable to resolve injectable annotation $metaName');
+    }
+  }
+
+  Iterable<ConstructorElement> _gatherConstructors() {
+    var constructors = _resolver.libraries
+        .expand((lib) => _resolver.getUnits(lib))
+        .expand((compilationUnit) => compilationUnit.types)
+        .map(_findInjectedConstructor)
+        .where((ctor) => ctor != null).toList();
+
+    constructors.addAll(_gatherInjectablesContents());
+
+    return constructors.toSet();
+  }
+
+  Iterable<ConstructorElement> _gatherInjectablesContents() {
+    var injectablesClass = _resolver.getType('di.annotations.Injectables');
+    if (injectablesClass == null) return const [];
+    var injectablesCtor = injectablesClass.unnamedConstructor;
+
+    var ctors = [];
+
+    for (var lib in _resolver.libraries) {
+      var annotationIdx = 0;
+      for (var annotation in lib.metadata) {
+        if (annotation.element == injectablesCtor) {
+          var libDirective = lib.definingCompilationUnit.node.directives
+              .where((d) => d is LibraryDirective).single;
+          var annotationDirective = libDirective.metadata[annotationIdx];
+          var listLiteral = annotationDirective.arguments.arguments.first;
+
+          for (var expr in listLiteral.elements) {
+            var element = (expr as SimpleIdentifier).bestElement;
+            if (element == null || element is! ClassElement) {
+              _logger.warning('Unable to resolve class $expr',
+                  asset: _resolver.getSourceAssetId(element),
+                  span: _resolver.getSourceSpan(element));
+              continue;
+            }
+            var ctor = _findInjectedConstructor(element, true);
+            if (ctor != null) {
+              ctors.add(ctor);
+            }
+          }
+        }
+      }
+    }
+    return ctors;
+  }
+
+  ConstructorElement _findInjectedConstructor(ClassElement cls,
+      [bool noAnnotation = false]) {
+    var classInjectedConstructors = [];
+    if (_isElementAnnotated(cls) || noAnnotation) {
+      var defaultConstructor = cls.unnamedConstructor;
+      if (defaultConstructor == null) {
+        _logger.warning('${cls.name} cannot be injected because '
+            'it does not have a default constructor.',
+            asset: _resolver.getSourceAssetId(cls),
+            span: _resolver.getSourceSpan(cls));
+      } else {
+        classInjectedConstructors.add(defaultConstructor);
+      }
+    }
+
+    classInjectedConstructors.addAll(
+        cls.constructors.where(_isElementAnnotated));
+
+    if (classInjectedConstructors.isEmpty) return null;
+    if (classInjectedConstructors.length > 1) {
+      _logger.warning('${cls.name} has more than one constructor annotated for '
+          'injection.',
+          asset: _resolver.getSourceAssetId(cls),
+          span: _resolver.getSourceSpan(cls));
+      return null;
+    }
+
+    var ctor = classInjectedConstructors.single;
+    if (!_validateConstructor(ctor)) return null;
+
+    return ctor;
+  }
+
+  bool _isElementAnnotated(Element e) {
+    for (var meta in e.metadata) {
+      if (meta.element is PropertyAccessorElement &&
+          _injectableMetaConsts.contains(meta.element.variable)) {
+        return true;
+      } else if (meta.element is ConstructorElement &&
+          _injectableMetaConstructors.contains(meta.element)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _validateConstructor(ConstructorElement ctor) {
+    var cls = ctor.enclosingElement;
+    if (cls.isAbstract && !ctor.isFactory) {
+      _logger.warning('${cls.name} cannot be injected because '
+          'it is an abstract type with no factory constructor.',
+          asset: _resolver.getSourceAssetId(cls),
+          span: _resolver.getSourceSpan(cls));
+      return false;
+    }
+    if (cls.isPrivate) {
+      _logger.warning('${cls.name} cannot be injected because it is a private '
+          'type.',
+          asset: _resolver.getSourceAssetId(cls),
+          span: _resolver.getSourceSpan(cls));
+      return false;
+    }
+    if (_resolver.getAbsoluteImportUri(cls.library) == null) {
+      _logger.warning('${cls.name} cannot be injected because '
+          'the containing file cannot be imported.',
+          asset: _resolver.getSourceAssetId(ctor),
+          span: _resolver.getSourceSpan(ctor));
+      return false;
+    }
+    if (!cls.typeParameters.isEmpty) {
+      _logger.warning('${cls.name} cannot be injected because it is a '
+          'parameterized type.',
+          asset: _resolver.getSourceAssetId(ctor),
+          span: _resolver.getSourceSpan(ctor));
+      return false;
+    }
+    if (ctor.name != '') {
+      _logger.warning('Named constructors cannot be injected.',
+          asset: _resolver.getSourceAssetId(ctor),
+          span: _resolver.getSourceSpan(ctor));
+      return false;
+    }
+    for (var param in ctor.parameters) {
+      var type = param.type.element;
+      if (type.kind == ElementKind.DYNAMIC) {
+        _logger.warning('${cls.name} cannot be injected because parameter type '
+          '${param.name} cannot be resolved.',
+            asset: _resolver.getSourceAssetId(ctor),
+            span: _resolver.getSourceSpan(ctor));
+        return false;
+      }
+      if (!type.typeParameters.isEmpty) {
+        _logger.warning('${cls.name} cannot be injected because ${param.type} '
+          'is a parameterized type.',
+            asset: _resolver.getSourceAssetId(ctor),
+            span: _resolver.getSourceSpan(ctor));
+        return false;
+      }
+    }
+    return true;
+  }
+
+  String _generateInjectLibrary(Iterable<ConstructorElement> constructors) {
     var outputBuffer = new StringBuffer();
 
-    _writeStaticInjectorHeader(asset.id, outputBuffer);
+    _writeStaticInjectorHeader(_resolver.entryPoint, outputBuffer);
 
-    var libs = crawlLibraries(transform, asset);
-    // The first lib is always the entry file, update that to include
-    // the generated expressions.
-    libs.first.then((lib) {
-      _transformPrimarySource(transform, lib);
+    var importPrefixes = <Uri, String>{};
+    var typePrefixes = <ClassElement, String>{};
+
+    var ctorTypes = constructors.map((ctor) => ctor.enclosingElement).toSet();
+    var paramTypes = constructors.expand((ctor) => ctor.parameters)
+        .map((param) => param.type.element).toSet();
+
+    var types = new Set.from(ctorTypes)..addAll(paramTypes);
+
+    for (var type in types) {
+      var importUrl = _resolver.getAbsoluteImportUri(type.library);
+      var prefix = importPrefixes.putIfAbsent(importUrl,
+          () => 'import_${importPrefixes.keys.length}');
+      typePrefixes[type] = prefix;
+    }
+
+    importPrefixes.forEach((uri, prefix) {
+      outputBuffer.write('import \'$uri\' as $prefix;\n');
     });
 
-    return libs.map((s) => gatherAnnotatedLibraries(s, options))
-        .where((l) => l != null).toList().then((libs) {
-      var index = 0;
-      for (var lib in libs) {
-        var prefix = 'import_${index++}';
-        lib.writeImports(outputBuffer, prefix);
-      }
-      _writePreamble(outputBuffer);
+    _writePreamble(outputBuffer);
 
-      index = 0;
-      for (var lib in libs) {
-        var prefix = 'import_${index++}';
-        lib.writeGenerators(outputBuffer, prefix);
-      }
+    for (var ctor in constructors) {
+      var type = ctor.enclosingElement;
+      var typeName = '${typePrefixes[type]}.${type.name}';
+      outputBuffer.write('  $typeName: (f) => new $typeName(');
+      var params = ctor.parameters.map((param) {
+        var type = param.type.element;
+        var typeName = '${typePrefixes[type]}.${type.name}';
+        return 'f($typeName)';
+      });
+      outputBuffer.write('${params.join(', ')}),\n');
+    }
 
-      _writeFooter(outputBuffer);
+    _writeFooter(outputBuffer);
 
-      var outputId =
-          new AssetId(asset.id.package, 'lib/$GENERATED_INJECTOR');
-      transform.addOutput(
-            new Asset.fromString(outputId, outputBuffer.toString()));
-    });
+    return outputBuffer.toString();
   }
 
   /**
@@ -106,7 +315,6 @@ void _writeStaticInjectorHeader(AssetId id, StringSink sink) {
   sink.write('''
 library ${id.package}.$libPath.generated_static_injector;
 
-import 'dart:core';
 import 'package:di/di.dart';
 import 'package:di/static_injector.dart';
 

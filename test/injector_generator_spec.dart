@@ -1,23 +1,33 @@
 library angular_transformers.test.injector_generator_spec;
 
+import 'dart:async';
 import 'package:angular_transformers/options.dart';
 import 'package:angular_transformers/transformer.dart';
+import 'package:angular_transformers/src/resolver_transformer.dart';
 import 'package:angular_transformers/src/injector_generator.dart';
 import 'jasmine_syntax.dart';
 import 'common.dart';
 
 main() {
   describe('generator', () {
-    var phases = [[new InjectorGenerator(new TransformOptions(
+    var injectableAnnotations = [];
+    var options = new TransformOptions(
         dartEntry: 'web/main.dart',
-        injectableAnnotations: ['NgInjectableService'],
-        injectableTypes: ['test_lib.Engine']))]];
+        injectableAnnotations: injectableAnnotations,
+        injectableTypes: ['test_lib.Engine'],
+        sdkDirectory: dartSdkDirectory);
+    var resolver = new ResolverTransformer(options);
+    var phases = [
+      [resolver],
+      [new InjectorGenerator(options, resolver)]
+    ];
 
     it('transforms imports', () {
-      return transform(phases,
+      return generates(phases,
           inputs: {
             'a|web/main.dart': 'import "package:a/car.dart";',
             'a|lib/car.dart': '''
+                import 'package:inject/inject.dart';
                 import 'package:a/engine.dart';
                 import 'package:a/seat.dart' as seat;
 
@@ -28,73 +38,65 @@ main() {
                 ''',
             'a|lib/engine.dart': CLASS_ENGINE,
             'a|lib/seat.dart': '''
+                import 'package:inject/inject.dart';
                 class Seat {
                   @inject
                   Seat();
                 }
                 ''',
           },
-          results: {
-            'a|lib/generated_static_injector.dart':
-'''
-$IMPORTS
-import 'dart:core' as import_0;
-import 'package:a/car.dart' as import_0;
-import 'package:a/engine.dart' as import_0;
-import 'package:a/seat.dart' as import_0_seat;
-import 'dart:core' as import_1;
-import 'package:a/engine.dart' as import_1;
-import 'dart:core' as import_2;
-import 'package:a/seat.dart' as import_2;
-$BOILER_PLATE
-  import_0.Car: (f) => new import_0.Car(f(import_0.Engine), f(import_0_seat.Seat)),
-  import_1.Engine: (f) => new import_1.Engine(),
-  import_2.Seat: (f) => new import_2.Seat(),
-$FOOTER
-'''
-          },
-          messages: []);
+          imports: [
+            "import 'package:a/car.dart' as import_0;",
+            "import 'package:a/engine.dart' as import_1;",
+            "import 'package:a/seat.dart' as import_2;",
+          ],
+          generators: [
+            'import_0.Car: (f) => new import_0.Car(f(import_1.Engine), f(import_2.Seat)),',
+            'import_1.Engine: (f) => new import_1.Engine(),',
+            'import_2.Seat: (f) => new import_2.Seat(),',
+          ]);
     });
 
     it('skips and warns about types in the web folder', () {
-        return transform(phases,
-            inputs: {
-              'a|web/main.dart': '''
-                class Foo {
-                  @inject
-                  Foo();
-                }
-                ''',
-            },
-            results: EMPTY_GENERATOR,
-            messages: [
-              'warning: Foo cannot be injected because the containing file '
-              'cannot be imported. (web/main.dart 0 16)']);
+      return generates(phases,
+          inputs: {
+            'a|web/main.dart': '''
+              import 'package:inject/inject.dart';
+              class Foo {
+                @inject
+                Foo();
+              }
+              ''',
+          },
+          messages: [
+            'warning: Foo cannot be injected because the containing file '
+            'cannot be imported. (web/main.dart 2 16)']);
     });
 
     it('skips and warns about parameterized classes', () {
-        return transform(phases,
-            inputs: {
-              'a|web/main.dart': 'import "package:a/a.dart";',
-              'a|lib/a.dart': '''
-                  class Parameterized<T> {
-                    @inject
-                    Parameterized();
-                  }
-                  '''
-            },
-            results: EMPTY_GENERATOR,
-            messages: [
-              'warning: Parameterized cannot be injected because it is a '
-              'parameterized type. (lib/a.dart 0 18)'
-            ]);
-      });
+      return generates(phases,
+          inputs: {
+            'a|web/main.dart': 'import "package:a/a.dart";',
+            'a|lib/a.dart': '''
+                import 'package:inject/inject.dart';
+                class Parameterized<T> {
+                  @inject
+                  Parameterized();
+                }
+                '''
+          },
+          messages: [
+            'warning: Parameterized cannot be injected because it is a '
+            'parameterized type. (lib/a.dart 2 18)'
+          ]);
+    });
 
     it('skips and warns about parameterized constructor parameters', () {
-        return transform(phases,
+        return generates(phases,
             inputs: {
               'a|web/main.dart': 'import "package:a/a.dart";',
               'a|lib/a.dart': '''
+                  import 'package:inject/inject.dart';
                   class Foo<T> {}
                   class Bar {
                     @inject
@@ -102,187 +104,174 @@ $FOOTER
                   }
                   '''
             },
-            results: EMPTY_GENERATOR,
             messages: [
-              'warning: Bar cannot be injected because Foo<bool> f is a '
-              'parameterized type. (lib/a.dart 3 24)'
+              'warning: Bar cannot be injected because Foo<bool> is a '
+              'parameterized type. (lib/a.dart 3 20)'
             ]);
-      });
+    });
 
-      it('follows exports', () {
-        return transform(phases,
-            inputs: {
-              'a|web/main.dart': 'import "package:a/a.dart";',
-              'a|lib/a.dart': 'export "package:a/b.dart";',
-              'a|lib/b.dart': CLASS_ENGINE
-            },
-            results: {
-              'a|lib/generated_static_injector.dart':
-'''
-$IMPORTS
-import 'dart:core' as import_0;
-import 'package:a/b.dart' as import_0;
-$BOILER_PLATE
-  import_0.Engine: (f) => new import_0.Engine(),
-$FOOTER
-'''
-            },
-            messages: []);
-      });
+    it('follows exports', () {
+      return generates(phases,
+          inputs: {
+            'a|web/main.dart': 'import "package:a/a.dart";',
+            'a|lib/a.dart': 'export "package:a/b.dart";',
+            'a|lib/b.dart': CLASS_ENGINE
+          },
+          imports: [
+            "import 'package:a/b.dart' as import_0;",
+          ],
+          generators: [
+            'import_0.Engine: (f) => new import_0.Engine(),',
+          ]);
+    });
 
-      it('handles parts', () {
-        return transform(phases,
-            inputs: {
-              'a|web/main.dart': 'import "package:a/a.dart";',
-              'a|lib/a.dart': 'part "b.dart";',
-              'a|lib/b.dart': '''
-                  part of a.a;
-                  $CLASS_ENGINE
-                  '''
-            },
-            results: {
-              'a|lib/generated_static_injector.dart':
-'''
-$IMPORTS
-import 'dart:core' as import_0;
-import 'package:a/a.dart' as import_0;
-$BOILER_PLATE
-  import_0.Engine: (f) => new import_0.Engine(),
-$FOOTER
-'''
-            },
-            messages: []);
-      });
+    it('handles parts', () {
+      return generates(phases,
+          inputs: {
+            'a|web/main.dart': 'import "package:a/a.dart";',
+            'a|lib/a.dart':
+                'import "package:inject/inject.dart";\n'
+                'part "b.dart";',
+            'a|lib/b.dart': '''
+                part of a.a;
+                $CLASS_ENGINE
+                '''
+          },
+          imports: [
+            "import 'package:a/a.dart' as import_0;",
+          ],
+          generators: [
+            'import_0.Engine: (f) => new import_0.Engine(),',
+          ]);
+    });
 
-      it('follows relative imports', () {
-        return transform(phases,
-            inputs: {
-              'a|web/main.dart': 'import "package:a/a.dart";',
-              'a|lib/a.dart': 'import "b.dart";',
-              'a|lib/b.dart': CLASS_ENGINE
-            },
-            results: {
-              'a|lib/generated_static_injector.dart':
-'''
-$IMPORTS
-import 'dart:core' as import_0;
-import 'package:a/b.dart' as import_0;
-$BOILER_PLATE
-  import_0.Engine: (f) => new import_0.Engine(),
-$FOOTER
-'''
-            },
-            messages: []);
-      });
+    it('follows relative imports', () {
+      return generates(phases,
+          inputs: {
+            'a|web/main.dart': 'import "package:a/a.dart";',
+            'a|lib/a.dart': 'import "b.dart";',
+            'a|lib/b.dart': CLASS_ENGINE
+          },
+          imports: [
+            "import 'package:a/b.dart' as import_0;",
+          ],
+          generators: [
+            'import_0.Engine: (f) => new import_0.Engine(),',
+          ]);
+    });
 
-      it('handles relative imports', () {
-        return transform(phases,
-            inputs: {
-              'a|web/main.dart': 'import "package:a/a.dart";',
-              'a|lib/a.dart': '''
-                  import 'b.dart';
-                  class Car {
-                    @inject
-                    Car(Engine engine);
-                  }
-                  ''',
-              'a|lib/b.dart': CLASS_ENGINE
-            },
-            results: {
-              'a|lib/generated_static_injector.dart':
-'''
-$IMPORTS
-import 'dart:core' as import_0;
-import 'package:a/a.dart' as import_0;
-import 'package:a/b.dart' as import_0;
-import 'dart:core' as import_1;
-import 'package:a/b.dart' as import_1;
-$BOILER_PLATE
-  import_0.Car: (f) => new import_0.Car(f(import_0.Engine)),
-  import_1.Engine: (f) => new import_1.Engine(),
-$FOOTER
-'''
-            },
-            messages: []);
+    it('handles relative imports', () {
+      return generates(phases,
+          inputs: {
+            'a|web/main.dart': 'import "package:a/a.dart";',
+            'a|lib/a.dart': '''
+                import "package:inject/inject.dart";
+                import 'b.dart';
+                class Car {
+                  @inject
+                  Car(Engine engine);
+                }
+                ''',
+            'a|lib/b.dart': CLASS_ENGINE
+          },
+          imports: [
+            "import 'package:a/a.dart' as import_0;",
+            "import 'package:a/b.dart' as import_1;",
+          ],
+          generators: [
+            'import_0.Car: (f) => new import_0.Car(f(import_1.Engine)),',
+            'import_1.Engine: (f) => new import_1.Engine(),',
+          ]);
       });
 
       it('skips and warns on named constructors', () {
-        return transform(phases,
+        return generates(phases,
             inputs: {
               'a|web/main.dart': 'import "package:a/a.dart";',
               'a|lib/a.dart': '''
+                  import "package:inject/inject.dart";
                   class Engine {
                     @inject
                     Engine.foo();
                   }
                   '''
             },
-            results: EMPTY_GENERATOR,
             messages: ['warning: Named constructors cannot be injected. '
-                '(lib/a.dart 1 20)']);
+                '(lib/a.dart 2 20)']);
       });
 
       it('handles inject on classes', () {
-        return transform(phases,
+        return generates(phases,
             inputs: {
               'a|web/main.dart': 'import "package:a/a.dart";',
               'a|lib/a.dart': '''
+                  import "package:inject/inject.dart";
                   @inject
                   class Engine {}
                   '''
             },
-            results: {
-              'a|lib/generated_static_injector.dart':
-'''
-$IMPORTS
-import 'dart:core' as import_0;
-import 'package:a/a.dart' as import_0;
-$BOILER_PLATE
-  import_0.Engine: (f) => new import_0.Engine(),
-$FOOTER
-'''
-            },
-            messages: []);
-        // warn on no implicit constructor.
+            imports: [
+            "import 'package:a/a.dart' as import_0;",
+            ],
+            generators: [
+              'import_0.Engine: (f) => new import_0.Engine(),',
+            ]);
       });
 
-      it('skips and warns on abstract types with no factory constructor', () {
-        return transform(phases,
+      it('skips and warns when no default constructor', () {
+        return generates(phases,
             inputs: {
               'a|web/main.dart': 'import "package:a/a.dart";',
               'a|lib/a.dart': '''
+                  import "package:inject/inject.dart";
+                  @inject
+                  class Engine {
+                    Engine.foo();
+                  }
+                  '''
+            },
+            messages: ['warning: Engine cannot be injected because it does not '
+                'have a default constructor. (lib/a.dart 1 18)']);
+      });
+
+      it('skips and warns on abstract types with no factory constructor', () {
+        return generates(phases,
+            inputs: {
+              'a|web/main.dart': 'import "package:a/a.dart";',
+              'a|lib/a.dart': '''
+                  import "package:inject/inject.dart";
                   @inject
                   abstract class Engine { }
                   '''
             },
-            results: EMPTY_GENERATOR,
             messages: ['warning: Engine cannot be injected because it is an '
                 'abstract type with no factory constructor. '
-                '(lib/a.dart 0 18)']);
+                '(lib/a.dart 1 18)']);
       });
 
       it('skips and warns on abstract types with implicit constructor', () {
-        return transform(phases,
+        return generates(phases,
             inputs: {
               'a|web/main.dart': 'import "package:a/a.dart";',
               'a|lib/a.dart': '''
+                  import "package:inject/inject.dart";
                   @inject
                   abstract class Engine {
                     Engine();
                   }
                   '''
             },
-            results: EMPTY_GENERATOR,
             messages: ['warning: Engine cannot be injected because it is an '
                 'abstract type with no factory constructor. '
-                '(lib/a.dart 0 18)']);
+                '(lib/a.dart 1 18)']);
       });
 
       it('injects abstract types with factory constructors', () {
-        return transform(phases,
+        return generates(phases,
             inputs: {
               'a|web/main.dart': 'import "package:a/a.dart";',
               'a|lib/a.dart': '''
+                  import "package:inject/inject.dart";
                   @inject
                   abstract class Engine {
                     factory Engine() => new ConcreteEngine();
@@ -291,25 +280,20 @@ $FOOTER
                   class ConcreteEngine implements Engine {}
                   '''
             },
-            results: {
-              'a|lib/generated_static_injector.dart':
-'''
-$IMPORTS
-import 'dart:core' as import_0;
-import 'package:a/a.dart' as import_0;
-$BOILER_PLATE
-  import_0.Engine: (f) => new import_0.Engine(),
-$FOOTER
-'''
-            },
-            messages: []);
+            imports: [
+            "import 'package:a/a.dart' as import_0;",
+            ],
+            generators: [
+              'import_0.Engine: (f) => new import_0.Engine(),',
+            ]);
       });
 
       it('injects this parameters', () {
-        return transform(phases,
+        return generates(phases,
             inputs: {
               'a|web/main.dart': 'import "package:a/a.dart";',
               'a|lib/a.dart': '''
+                  import "package:inject/inject.dart";
                   class Engine {
                     final Fuel fuel;
                     @inject
@@ -319,25 +303,20 @@ $FOOTER
                   class Fuel {}
                   '''
             },
-            results: {
-              'a|lib/generated_static_injector.dart':
-'''
-$IMPORTS
-import 'dart:core' as import_0;
-import 'package:a/a.dart' as import_0;
-$BOILER_PLATE
-  import_0.Engine: (f) => new import_0.Engine(f(import_0.Fuel)),
-$FOOTER
-'''
-            },
-            messages: []);
+            imports: [
+            "import 'package:a/a.dart' as import_0;",
+            ],
+            generators: [
+              'import_0.Engine: (f) => new import_0.Engine(f(import_0.Fuel)),',
+            ]);
       });
 
       it('narrows this parameters', () {
-        return transform(phases,
+        return generates(phases,
             inputs: {
               'a|web/main.dart': 'import "package:a/a.dart";',
               'a|lib/a.dart': '''
+                  import "package:inject/inject.dart";
                   class Engine {
                     final Fuel fuel;
                     @inject
@@ -348,25 +327,20 @@ $FOOTER
                   class JetFuel implements Fuel {}
                   '''
             },
-            results: {
-              'a|lib/generated_static_injector.dart':
-'''
-$IMPORTS
-import 'dart:core' as import_0;
-import 'package:a/a.dart' as import_0;
-$BOILER_PLATE
-  import_0.Engine: (f) => new import_0.Engine(f(import_0.JetFuel)),
-$FOOTER
-'''
-            },
-            messages: []);
+            imports: [
+            "import 'package:a/a.dart' as import_0;",
+            ],
+            generators: [
+              'import_0.Engine: (f) => new import_0.Engine(f(import_0.JetFuel)),',
+            ]);
       });
 
       it('skips and warns on unresolved types', () {
-        return transform(phases,
+        return generates(phases,
             inputs: {
               'a|web/main.dart': 'import "package:a/a.dart";',
               'a|lib/a.dart': '''
+                  import "package:inject/inject.dart";
                   @inject
                   class Engine {
                     Engine(foo);
@@ -379,20 +353,22 @@ $FOOTER
                   }
                   '''
             },
-            results: EMPTY_GENERATOR,
             messages: ['warning: Engine cannot be injected because parameter '
-                'type foo cannot be resolved. (lib/a.dart 2 27)',
+                'type foo cannot be resolved. (lib/a.dart 3 20)',
                 'warning: Car cannot be injected because parameter type '
-                'this.foo cannot be resolved. (lib/a.dart 8 24)']);
+                'foo cannot be resolved. (lib/a.dart 9 20)']);
       });
 
       it('supports custom annotations', () {
-        return transform(phases,
+        injectableAnnotations.add('angular.NgInjectableService');
+        return generates(phases,
             inputs: {
               'a|web/main.dart': 'import "package:a/a.dart";',
+              'angular|lib/angular.dart': PACKAGE_ANGULAR,
               'a|lib/a.dart': '''
+                  import 'package:angular/angular.dart';
+                  @NgInjectableService()
                   class Engine {
-                    @NgInjectableService
                     Engine();
                   }
 
@@ -402,26 +378,23 @@ $FOOTER
                   }
                   '''
             },
-            results: {
-              'a|lib/generated_static_injector.dart':
-'''
-$IMPORTS
-import 'dart:core' as import_0;
-import 'package:a/a.dart' as import_0;
-$BOILER_PLATE
-  import_0.Engine: (f) => new import_0.Engine(),
-  import_0.Car: (f) => new import_0.Car(),
-$FOOTER
-'''
-            },
-            messages: []);
+            imports: [
+              "import 'package:a/a.dart' as import_0;",
+            ],
+            generators: [
+              'import_0.Engine: (f) => new import_0.Engine(),',
+              'import_0.Car: (f) => new import_0.Car(),',
+            ]).then((_) {
+              injectableAnnotations.clear();
+            });
       });
 
       it('supports default formal parameters', () {
-        return transform(phases,
+        return generates(phases,
             inputs: {
               'a|web/main.dart': 'import "package:a/a.dart";',
               'a|lib/a.dart': '''
+                  import "package:inject/inject.dart";
                   class Engine {
                     final Car car;
 
@@ -435,54 +408,102 @@ $FOOTER
                   }
                   '''
             },
-            results: {
-              'a|lib/generated_static_injector.dart':
-'''
-$IMPORTS
-import 'dart:core' as import_0;
-import 'package:a/a.dart' as import_0;
-$BOILER_PLATE
-  import_0.Engine: (f) => new import_0.Engine(f(import_0.Car)),
-  import_0.Car: (f) => new import_0.Car(),
-$FOOTER
-'''
-            },
-            messages: []);
+            imports: [
+              "import 'package:a/a.dart' as import_0;",
+            ],
+            generators: [
+              'import_0.Engine: (f) => new import_0.Engine(f(import_0.Car)),',
+              'import_0.Car: (f) => new import_0.Car(),',
+            ]);
       });
 
       it('supports injectableTypes argument', () {
-        return transform(phases,
+        return generates(phases,
             inputs: {
               'a|web/main.dart': 'import "package:a/a.dart";',
+              'di|lib/annotations.dart': PACKAGE_DI,
               'a|lib/a.dart': '''
-                  library test_lib;
+                  @Injectables(const[Engine])
+                  library a;
+
+                  import 'package:di/annotations.dart';
+
                   class Engine {
                     Engine();
                   }
                   '''
             },
-            results: {
-              'a|lib/generated_static_injector.dart':
-'''
-$IMPORTS
-import 'dart:core' as import_0;
-import 'package:a/a.dart' as import_0;
-$BOILER_PLATE
-  import_0.Engine: (f) => new import_0.Engine(),
-$FOOTER
-'''
-            },
-            messages: []);
+            imports: [
+              "import 'package:a/a.dart' as import_0;",
+            ],
+            generators: [
+              'import_0.Engine: (f) => new import_0.Engine(),',
+            ]);
       });
 
-      // Test for warn on private types.
+      it('warns on private types', () {
+        return generates(phases,
+            inputs: {
+              'a|web/main.dart': 'import "package:a/a.dart";',
+              'a|lib/a.dart': '''
+                  import "package:inject/inject.dart";
+                  @inject
+                  class _Engine {
+                    _Engine();
+                  }
+                  '''
+            },
+            messages: ['warning: _Engine cannot be injected because it is a '
+                'private type. (lib/a.dart 1 18)']);
+      });
+
+      it('warns on multiple constructors', () {
+        return generates(phases,
+            inputs: {
+              'a|web/main.dart': 'import "package:a/a.dart";',
+              'a|lib/a.dart': '''
+                  import "package:inject/inject.dart";
+
+                  @inject
+                  class Engine {
+                    Engine();
+
+                    @inject
+                    Engine.foo();
+                  }
+                  '''
+            },
+            messages: ['warning: Engine has more than one constructor annotated '
+                'for injection. (lib/a.dart 2 18)']);
+      });
   });
+}
+
+Future generates(List<List<Transformer>> phases,
+    {Map<String, String> inputs, Iterable<String> imports: const [],
+    Iterable<String> generators: const [],
+    Iterable<String> messages: const []}) {
+
+  inputs['inject|lib/inject.dart'] = PACKAGE_INJECT;
+
+  imports = imports.map((i) => '$i\n');
+  generators = generators.map((t) => '  $t\n');
+
+  return transform(phases,
+      inputs: inputs,
+      results: {
+          'a|lib/generated_static_injector.dart': '''
+$IMPORTS
+${imports.join('')}$BOILER_PLATE
+${generators.join('')}$FOOTER
+''',
+      },
+      messages: messages);
 }
 
 const String IMPORTS = '''
 library a.web.main.generated_static_injector;
 
-import 'dart:core';
 import 'package:di/di.dart';
 import 'package:di/static_injector.dart';
 
@@ -507,16 +528,36 @@ final Map<Type, TypeFactory> factories = <Type, TypeFactory>{''';
 const String FOOTER = '''
 };''';
 
-const Map EMPTY_GENERATOR = const {
-  'a|lib/generated_static_injector.dart': '''
-$IMPORTS
-$BOILER_PLATE
-$FOOTER
-'''
-};
-
-const CLASS_ENGINE = '''
+const String CLASS_ENGINE = '''
+    import 'package:inject/inject.dart';
     class Engine {
       @inject
       Engine();
     }''';
+
+const String PACKAGE_ANGULAR = '''
+library angular;
+
+class NgInjectableService {
+  const NgInjectableService();
+}
+''';
+
+const String PACKAGE_INJECT = '''
+library inject;
+
+class InjectAnnotation {
+  const InjectAnnotation._();
+}
+const inject = const InjectAnnotation._();
+''';
+
+
+const String PACKAGE_DI = '''
+library di.annotations;
+
+class Injectables {
+  final List<Type> types;
+  const Injectables(this.types);
+}
+''';
