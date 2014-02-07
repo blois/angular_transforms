@@ -17,6 +17,7 @@ Future generateInjectors(CommandLineOptions options) {
 
   var transformOptions = new TransformOptions(
       dartEntry: options.entryPoint,
+      sdkDirectory: options.sdkDir,
       htmlFiles: options.htmlFiles,
       injectableAnnotations: options.injectableAnnotations);
 
@@ -26,6 +27,7 @@ Future generateInjectors(CommandLineOptions options) {
       currentPackage: currentPackage,
       packageHome: packageHome,
       packageDirs: packageDirs,
+      transformTests: true,
       machineFormat: options.machineFormat);
   return runBarback(barbackOptions)
       .then((_) => print('Done! All files written to "${options.outDir}"'));
@@ -54,8 +56,12 @@ class CommandLineOptions {
   /** Location where to generate output files. */
   final String outDir;
 
-  CommandLineOptions({this.packageHome, this.entryPoint, this.htmlFiles,
-      this.injectableAnnotations, this.machineFormat, this.outDir});
+  /** Location of the Dart SDK. */
+  final String sdkDir;
+
+  CommandLineOptions({this.packageHome, this.entryPoint, this.sdkDir,
+      this.htmlFiles, this.injectableAnnotations, this.machineFormat,
+      this.outDir});
 
   /**
    * Parse command-line arguments and return a [CommandLineOptions] object.
@@ -65,7 +71,8 @@ class CommandLineOptions {
       ..addOption('package-home',
           help: 'The root of the package, where pubspec.yaml resides.',
           defaultsTo: '.')
-      ..addOption('entry', help: 'The application entry point')
+      ..addOption('entry', help: 'The application entry point.')
+      ..addOption('dart-sdk', help: 'The Dart SDK directory.')
       ..addOption('html', help: 'HTML file containing Angular expressions.',
           allowMultiple: true)
       ..addOption('inject-annotation',
@@ -99,6 +106,7 @@ class CommandLineOptions {
     return new CommandLineOptions(
         packageHome: path.absolute(res['package-home']),
         entryPoint: res['entry'],
+        sdkDir: res['dart-sdk'],
         htmlFiles: res['html'],
         injectableAnnotations: res['inject-annotation'],
         outDir: res['out'],

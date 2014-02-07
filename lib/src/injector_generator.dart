@@ -10,7 +10,6 @@ import 'package:di/dynamic_injector.dart';
 import 'package:path/path.dart' as path;
 import 'package:source_maps/refactor.dart';
 
-import 'asset_libraries.dart';
 import 'common.dart';
 import 'resolver.dart';
 import 'resolver_transformer.dart';
@@ -48,15 +47,9 @@ class InjectorGenerator extends Transformer {
     _logger = null;
     _resolver = null;
     return new Future.value(null);
-
-    // return _generateStaticInjector(transform).then((_) {
-    //   // Workaround for dartbug.com/16120- do not send data across the isolate
-    //   // boundaries.
-    //   return null;
-    // });
   }
 
-  /// Default list of injectable consts
+  /** Default list of injectable consts */
   static const List<String> _DEFAULT_INJECTABLE_META_CONSTS = const [
     'inject.inject'
   ];
@@ -97,6 +90,7 @@ class InjectorGenerator extends Transformer {
         .where((ctor) => ctor != null).toList();
 
     constructors.addAll(_gatherInjectablesContents());
+    constructors.addAll(_gatherManuallyInjected());
 
     return constructors.toSet();
   }
@@ -141,6 +135,21 @@ class InjectorGenerator extends Transformer {
             }
           }
         }
+      }
+    }
+    return ctors;
+  }
+
+  Iterable<ConstructorElement> _gatherManuallyInjected() {
+    var ctors = [];
+    for (var injectedName in options.injectedTypes) {
+      var injectedClass = _resolver.getType(injectedName);
+      if (injectedClass == null) {
+        _logger.warning('Unable to resolve injected_type $injectedClass');
+      }
+      var ctor = _findInjectedConstructor(injectedClass, true);
+      if (ctor != null) {
+        ctors.add(ctor);
       }
     }
     return ctors;
@@ -229,11 +238,10 @@ class InjectorGenerator extends Transformer {
       return false;
     }
     if (!cls.typeParameters.isEmpty) {
-      _logger.warning('${cls.name} cannot be injected because it is a '
-          'parameterized type.',
+      _logger.warning('${cls.name} is a parameterized type.',
           asset: _resolver.getSourceAssetId(ctor),
           span: _resolver.getSourceSpan(ctor));
-      return false;
+      // Only warn.
     }
     if (ctor.name != '') {
       _logger.warning('Named constructors cannot be injected.',
@@ -242,17 +250,18 @@ class InjectorGenerator extends Transformer {
       return false;
     }
     for (var param in ctor.parameters) {
-      var type = param.type.element;
-      if (type.kind == ElementKind.DYNAMIC) {
-        _logger.warning('${cls.name} cannot be injected because parameter type '
-          '${param.name} cannot be resolved.',
+      var type = param.type;
+      if (type is InterfaceType &&
+          type.typeArguments.any((t) => !t.isDynamic)) {
+        _logger.warning('${cls.name} cannot be injected because '
+            '${param.type} is a parameterized type.',
             asset: _resolver.getSourceAssetId(ctor),
             span: _resolver.getSourceSpan(ctor));
         return false;
       }
-      if (!type.typeParameters.isEmpty) {
-        _logger.warning('${cls.name} cannot be injected because ${param.type} '
-          'is a parameterized type.',
+      if (type.isDynamic) {
+        _logger.warning('${cls.name} cannot be injected because parameter type '
+          '${param.name} cannot be resolved.',
             asset: _resolver.getSourceAssetId(ctor),
             span: _resolver.getSourceSpan(ctor));
         return false;
@@ -310,15 +319,15 @@ class InjectorGenerator extends Transformer {
 
   /**
    * Modify the primary asset of the transform to import the generated source
-   * and modify all references to defaultAutoInjector to refer to the generated
+   * and modify all references to defaultInjector to refer to the generated
    * static injector.
    */
   void _transformAsset(Transform transform) {
     var autoInjector = _resolver.getLibraryFunction(
-        'angular_transformers.auto_modules.defaultAutoInjector');
+        'angular_transformers.auto_modules.defaultInjector');
 
     if (autoInjector == null) {
-      _logger.info('Unable to resolve defaultAutoInjector, not transforming '
+      _logger.info('Unable to resolve defaultInjector, not transforming '
           'entry point.');
       transform.addOutput(transform.primaryInput);
       return;

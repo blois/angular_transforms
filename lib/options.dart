@@ -30,7 +30,7 @@ class TransformOptions {
   /**
    * Set of additional types which should be injected.
    */
-  final Set<String> injectableTypes;
+  final Set<String> injectedTypes;
 
   /**
    * Path to the Dart SDK directory, for resolving Dart libraries.
@@ -39,18 +39,19 @@ class TransformOptions {
 
   TransformOptions({String dartEntry,
       String sdkDirectory, List<String> htmlFiles,
-      List<String> injectableAnnotations, List<String> injectableTypes})
+      List<String> injectableAnnotations, List<String> injectedTypes})
     : this.dartEntry = _systemToAssetPath(dartEntry),
       this.sdkDirectory = sdkDirectory,
       this.htmlFiles = htmlFiles != null ? htmlFiles : [],
       this.injectableAnnotations =
           injectableAnnotations != null ? injectableAnnotations : [],
-      this.injectableTypes =
-          new Set.from(injectableTypes != null ? injectableTypes : []);
+      this.injectedTypes =
+          new Set.from(injectedTypes != null ? injectedTypes : []) {
+    if (sdkDirectory == null)
+      throw new ArgumentError('sdkDirectory must be provided.');
+  }
 
   bool isDartEntry(AssetId id) => id.path == dartEntry || dartEntry == '*';
-
-  bool isInjectableType(String typeName) => injectableTypes.contains(typeName);
 }
 
 /** Convert system paths to asset paths (asset paths are posix style). */

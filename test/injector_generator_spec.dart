@@ -14,7 +14,6 @@ main() {
     var options = new TransformOptions(
         dartEntry: 'web/main.dart',
         injectableAnnotations: injectableAnnotations,
-        injectableTypes: ['test_lib.Engine'],
         sdkDirectory: dartSdkDirectory);
 
     var resolver = new ResolverTransformer(dartSdkDirectory,
@@ -76,7 +75,7 @@ main() {
             'cannot be imported. (web/main.dart 2 16)']);
     });
 
-    it('skips and warns about parameterized classes', () {
+    it('warns about parameterized classes', () {
       return generates(phases,
           inputs: {
             'a|web/main.dart': 'import "package:a/a.dart";',
@@ -88,29 +87,56 @@ main() {
                 }
                 '''
           },
+          imports: [
+            "import 'package:a/a.dart' as import_0;",
+          ],
+          generators: [
+            'import_0.Parameterized: (f) => new import_0.Parameterized(),',
+          ],
           messages: [
-            'warning: Parameterized cannot be injected because it is a '
-            'parameterized type. (lib/a.dart 2 18)'
+            'warning: Parameterized is a parameterized type. '
+            '(lib/a.dart 2 18)',
           ]);
     });
 
     it('skips and warns about parameterized constructor parameters', () {
-        return generates(phases,
-            inputs: {
-              'a|web/main.dart': 'import "package:a/a.dart";',
-              'a|lib/a.dart': '''
-                  import 'package:inject/inject.dart';
-                  class Foo<T> {}
-                  class Bar {
-                    @inject
-                    Bar(Foo<bool> f);
-                  }
-                  '''
-            },
-            messages: [
-              'warning: Bar cannot be injected because Foo<bool> is a '
-              'parameterized type. (lib/a.dart 3 20)'
-            ]);
+      return generates(phases,
+          inputs: {
+            'a|web/main.dart': 'import "package:a/a.dart";',
+            'a|lib/a.dart': '''
+                import 'package:inject/inject.dart';
+                class Foo<T> {}
+                class Bar {
+                  @inject
+                  Bar(Foo<bool> f);
+                }
+                '''
+          },
+          messages: [
+            'warning: Bar cannot be injected because Foo<bool> is a '
+            'parameterized type. (lib/a.dart 3 18)'
+          ]);
+    });
+
+    it('allows un-parameterized parameters', () {
+      return generates(phases,
+          inputs: {
+            'a|web/main.dart': 'import "package:a/a.dart";',
+            'a|lib/a.dart': '''
+                import 'package:inject/inject.dart';
+                class Foo<T> {}
+                class Bar {
+                  @inject
+                  Bar(Foo f);
+                }
+                '''
+          },
+          imports: [
+            "import 'package:a/a.dart' as import_0;",
+          ],
+          generators: [
+            'import_0.Bar: (f) => new import_0.Bar(f(import_0.Foo)),',
+          ]);
     });
 
     it('follows exports', () {
@@ -489,10 +515,10 @@ import 'package:angular_transformers/auto_modules.dart';
 import 'package:angular_transformers/auto_modules.dart' as am;
 
 main() {
-  var module = defaultAutoInjector(modules: null, name: 'foo');
+  var module = defaultInjector(modules: null, name: 'foo');
   print(module);
 
-  var module2 = am.defaultAutoInjector(modules: null, name: 'foo');
+  var module2 = am.defaultInjector(modules: null, name: 'foo');
   print(module2);
 }''',
               'angular_transformers|lib/auto_modules.dart': PACKAGE_AUTO
@@ -602,7 +628,7 @@ class Injectables {
 const String PACKAGE_AUTO = '''
 library angular_transformers.auto_modules;
 
-defaultAutoInjector({List modules, String name,
+defaultInjector({List modules, String name,
     bool allowImplicitInjection: false}) => null;
 }
 ''';

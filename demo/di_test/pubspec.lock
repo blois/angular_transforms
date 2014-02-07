@@ -10,7 +10,7 @@ packages:
       path: "../../../angular.dart"
       relative: true
     source: path
-    version: "0.9.5"
+    version: "0.9.4"
   angular_transformers:
     description:
       path: "../.."
@@ -25,6 +25,10 @@ packages:
     description: barback
     source: hosted
     version: "0.11.0+3"
+  benchmark_harness:
+    description: benchmark_harness
+    source: hosted
+    version: "1.0.3"
   browser:
     description: browser
     source: hosted
@@ -66,7 +70,7 @@ packages:
   route_hierarchical:
     description: route_hierarchical
     source: hosted
-    version: "0.4.10"
+    version: "0.4.12"
   source_maps:
     description: source_maps
     source: hosted

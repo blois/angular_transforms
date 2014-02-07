@@ -23,13 +23,17 @@ class AngularTransformerGroup implements TransformerGroup {
 TransformOptions _parseSettings(BarbackSettings settings) {
   var args = settings.configuration;
   // Default angular annotations;
-  var annotations = ['NgInjectableService', 'NgDirective', 'NgController',
-      'NgComponent', 'NgFilter'];
+  var annotations = [
+      'angular.core.service.NgInjectableService',
+      'angular.core.NgDirective',
+      'angular.core.NgController',
+      'angular.core.NgComponent',
+      'angular.core.NgFilter'];
   annotations.addAll(_readStringListValue(args, 'injectable_annotations'));
 
-  var injectableTypes = ['perf_api.Profiler',
+  var injectedTypes = ['perf_api.Profiler',
       'angular.core.parser.static_parser.StaticParser'];
-  injectableTypes.addAll(_readStringListValue(args, 'injectable_types'));
+  injectedTypes.addAll(_readStringListValue(args, 'injected_types'));
 
   var sdkDir = _readStringValue(args, 'dart_sdk', required: false);
   if (sdkDir == null) {
@@ -41,7 +45,8 @@ TransformOptions _parseSettings(BarbackSettings settings) {
       dartEntry: _readStringValue(args, 'dart_entry'),
       htmlFiles: _readStringListValue(args, 'html_files'),
       injectableAnnotations: annotations,
-      injectableTypes: injectableTypes);
+      injectedTypes: injectedTypes,
+      sdkDirectory: sdkDir);
 }
 
 _readStringValue(Map args, String name, {bool required: true}) {
