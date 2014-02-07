@@ -5,20 +5,19 @@ import 'dart:collection';
 import 'dart:mirrors' show reflect;
 import 'package:analyzer/src/generated/ast.dart';
 import 'package:analyzer/src/generated/element.dart';
-import 'package:analyzer/src/generated/sdk.dart' show DartSdk;
-import 'package:analyzer/src/generated/engine.dart'
-    show AnalysisEngine, AnalysisContext, ChangeSet, AnalysisOptionsImpl;
+import 'package:analyzer/src/generated/engine.dart';
 import 'package:analyzer/src/generated/error.dart' show AnalysisErrorListener;
 import 'package:analyzer/src/generated/java_core.dart' show CharSequence;
 import 'package:analyzer/src/generated/java_io.dart' show JavaSystemIO, JavaFile;
 import 'package:analyzer/src/generated/parser.dart' show Parser;
-import 'package:analyzer/src/generated/scanner.dart'
-    show CharSequenceReader, Scanner;
+import 'package:analyzer/src/generated/scanner.dart';
+import 'package:analyzer/src/generated/sdk.dart' show DartSdk;
 import 'package:analyzer/src/generated/sdk_io.dart' show DirectoryBasedDartSdk;
 import 'package:analyzer/src/generated/source.dart';
 import 'package:barback/barback.dart';
 import 'package:path/path.dart' as path;
 import 'package:source_maps/span.dart' show SourceFile, Span;
+import 'package:source_maps/refactor.dart';
 
 /**
  * Resolves an AST based on Barback-based assets.
@@ -46,7 +45,7 @@ class Resolver {
     var options = new AnalysisOptionsImpl();
     options.cacheSize = 256;
     options.preserveComments = false;
-    options.analyzeFunctionBodies = false;
+    options.analyzeFunctionBodies = true;
     _context.analysisOptions = options;
 
     var dartSdk = new _DirectoryBasedDartSdkProxy(new JavaFile(sdkDir));
@@ -85,9 +84,8 @@ class Resolver {
     toVisit.add(entryPoint);
 
     Future visitNext() {
-      if (toVisit.length == 0) {
-        return null;
-      }
+      if (toVisit.length == 0) return null;
+
       var assetId = toVisit.first;
       toVisit.remove(assetId);
       visited.add(assetId);
@@ -145,8 +143,7 @@ class Resolver {
   }
 
   /** Gets all libraries accessible from the entry point, recursively. */
-  Iterable<LibraryElement> get libraries =>
-      new _LibraryElementIterable(_entryLibrary);
+  Iterable<LibraryElement> get libraries => entryLibrary.visibleLibraries;
 
   /**
    * Finds the first library identified by [libraryName], or null if no
@@ -161,17 +158,13 @@ class Resolver {
   ClassElement getType(String typeName) {
     var dotIndex = typeName.lastIndexOf('.');
     var libraryName = dotIndex == -1 ? '' : typeName.substring(0, dotIndex);
-    // Can have conflicting library names.
-    var libs = libraries.where((l) => l.name == libraryName);
 
     var className = dotIndex == -1 ?
         typeName : typeName.substring(dotIndex + 1);
 
-    for (var lib in libs) {
+    for (var lib in libraries.where((l) => l.name == libraryName)) {
       var type = lib.getType(className);
-      if (type != null) {
-        return type;
-      }
+      if (type != null) return type;
     }
     return null;
   }
@@ -182,22 +175,32 @@ class Resolver {
   Element getLibraryVariable(String variableName) {
     var dotIndex = variableName.lastIndexOf('.');
     var libraryName = dotIndex == -1 ? '' : variableName.substring(0, dotIndex);
-    // Can have conflicting library names.
-    var libs = libraries.where((l) => l.name == libraryName);
 
-    var varName = dotIndex == -1 ?
+    var name = dotIndex == -1 ?
         variableName : variableName.substring(dotIndex + 1);
 
-    for (var lib in libs) {
-      for (var unit in getUnits(lib)) {
-        for (var variable in unit.topLevelVariables) {
-          if (variable.name == varName) {
-            return variable;
-          }
-        }
-      }
-    }
-    return null;
+    return libraries.where((lib) => lib.name == libraryName)
+        .expand((lib) => lib.units)
+        .expand((unit) => unit.topLevelVariables)
+        .firstWhere((variable) => variable.name == name,
+            orElse: () => null);
+  }
+
+  /**
+   * Resolves a fully-qualified top-level library function (library_name.Name).
+   */
+  Element getLibraryFunction(String fnName) {
+    var dotIndex = fnName.lastIndexOf('.');
+    var libraryName = dotIndex == -1 ? '' : fnName.substring(0, dotIndex);
+
+    var name = dotIndex == -1 ?
+        fnName : fnName.substring(dotIndex + 1);
+
+    return libraries.where((lib) => lib.name == libraryName)
+        .expand((lib) => lib.units)
+        .expand((unit) => unit.functions)
+        .firstWhere((fn) => fn.name == name,
+            orElse: () => null);
   }
 
   /**
@@ -218,23 +221,36 @@ class Resolver {
     throw new StateError('Unable to resolve URI for ${source.runtimeType}');
   }
 
+  /** Get the asset ID of the file containing the asset. */
   AssetId getSourceAssetId(Element element) {
     if (element.source is _AssetBasedSource) return element.source.assetId;
     return null;
   }
 
+  /** Get the source span where the specified element was defined. */
   Span getSourceSpan(Element element) {
     var assetId = getSourceAssetId(element);
     if (assetId == null) return null;
 
-    var sourceFile =
-        new SourceFile.text(assetId.path, sources[assetId].contents);
+    var sourceFile = new SourceFile.text(assetId.path,
+        sources[assetId].contents);
     return sourceFile.span(element.node.offset, element.node.end);
   }
 
-  // TODO: remove for analyzer 0.11+
-  Iterable<CompilationUnitElement> getUnits(LibraryElement l) =>
-      [l.definingCompilationUnit]..addAll(l.parts);
+  /**
+   * Creates a text edit transaction for the given element if it is able
+   * to be edited, returns null otherwise.
+   */
+  TextEditTransaction createTextEditTransaction(Element element) {
+    if (element.source is! _AssetBasedSource) return null;
+
+    _AssetBasedSource source = element.source;
+    // Cannot modify assets in other packages.
+    if (source.assetId.package != entryPoint.package) return null;
+
+    var sourceFile = new SourceFile.text(source.assetId.path, source.contents);
+    return new TextEditTransaction(source.contents, sourceFile);
+  }
 }
 
 /** Implementation of Analyzer's Source for Barback based assets. */
@@ -461,49 +477,4 @@ AssetId _resolve(AssetId source, String url, TransformLogger logger,
   var targetPath = urlBuilder.normalize(
       urlBuilder.join(urlBuilder.dirname(source.path), url));
   return new AssetId(source.package, targetPath);
-}
-
-// TODO: switch to Library.visibleLibraries with analyzer 11+
-class _LibraryElementIterable extends IterableBase<LibraryElement> {
-  final LibraryElement _entryPoint;
-  _LibraryElementIterable(this._entryPoint);
-
-  Iterator<LibraryElement> get iterator =>
-      new _LibraryElementIterator(_entryPoint);
-}
-
-// TODO: switch to Library.visibleLibraries with analyzer 11+
-class _LibraryElementIterator implements Iterator<LibraryElement> {
-  Set<LibraryElement> _visited = new Set<LibraryElement>();
-  List<LibraryElement> _toVisit = <LibraryElement>[];
-  LibraryElement _current;
-
-  _LibraryElementIterator(LibraryElement entryPoint) {
-    _toVisit.add(entryPoint);
-  }
-
-  LibraryElement get current => _current;
-
-  bool moveNext() {
-    if (_toVisit.isEmpty) {
-      _current = null;
-      return false;
-    }
-    _current = _toVisit.removeAt(0);
-    _visited.add(_current);
-
-    for (var imported in _current.importedLibraries) {
-      if (!_visited.contains(imported) && !_toVisit.contains(imported)) {
-        _toVisit.add(imported);
-      }
-    }
-
-    for (var exported in _current.exportedLibraries) {
-      if (!_visited.contains(exported) && !_toVisit.contains(exported)) {
-        _toVisit.add(exported);
-      }
-    }
-
-    return true;
-  }
 }

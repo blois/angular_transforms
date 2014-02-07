@@ -45,7 +45,7 @@
  * as this is the only file which will be modified to include the generated
  * injector.
  */
-library di.auto_injector;
+library angular_transformers.auto_modules;
 
 import 'package:di/di.dart';
 import 'package:di/dynamic_injector.dart';

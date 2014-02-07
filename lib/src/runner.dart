@@ -285,7 +285,7 @@ Future _emitPackagesDir(BarbackOptions options) {
   // Copy all the files we didn't process
   var dirs = options.packageDirs;
 
-  return Future.forEach(options.packageDirs.keys, (package) {
+  return Future.forEach(dirs.keys, (package) {
     return Future.forEach(_listPackageDir(package, 'lib', options), (relpath) {
       var inpath = path.join(dirs[package], relpath);
       var outpath = path.join(outPackages, package, relpath.substring(4));

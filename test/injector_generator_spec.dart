@@ -16,7 +16,10 @@ main() {
         injectableAnnotations: injectableAnnotations,
         injectableTypes: ['test_lib.Engine'],
         sdkDirectory: dartSdkDirectory);
-    var resolver = new ResolverTransformer(options);
+
+    var resolver = new ResolverTransformer(dartSdkDirectory,
+        (asset) => options.isDartEntry(asset.id));
+
     var phases = [
       [resolver],
       [new InjectorGenerator(options, resolver)]
@@ -473,8 +476,43 @@ main() {
                   }
                   '''
             },
-            messages: ['warning: Engine has more than one constructor annotated '
-                'for injection. (lib/a.dart 2 18)']);
+            messages: ['warning: Engine has more than one constructor '
+                'annotated for injection. (lib/a.dart 2 18)']);
+      });
+
+      it('transforms main', () {
+        return transform(phases,
+            inputs: {
+              'a|web/main.dart': '''
+library main;
+import 'package:angular_transformers/auto_modules.dart';
+import 'package:angular_transformers/auto_modules.dart' as am;
+
+main() {
+  var module = defaultAutoInjector(modules: null, name: 'foo');
+  print(module);
+
+  var module2 = am.defaultAutoInjector(modules: null, name: 'foo');
+  print(module2);
+}''',
+              'angular_transformers|lib/auto_modules.dart': PACKAGE_AUTO
+            },
+            results: {
+              'a|web/main.dart': '''
+library main;
+import 'package:a/generated_static_injector.dart' as generated_static_injector;
+import 'package:angular_transformers/auto_modules.dart';
+import 'package:angular_transformers/auto_modules.dart' as am;
+
+main() {
+  var module = generated_static_injector.createStaticInjector(modules: null, name: 'foo');
+  print(module);
+
+  var module2 = generated_static_injector.createStaticInjector(modules: null, name: 'foo');
+  print(module2);
+}'''
+
+            });
       });
   });
 }
@@ -552,12 +590,19 @@ class InjectAnnotation {
 const inject = const InjectAnnotation._();
 ''';
 
-
 const String PACKAGE_DI = '''
 library di.annotations;
 
 class Injectables {
   final List<Type> types;
   const Injectables(this.types);
+}
+''';
+
+const String PACKAGE_AUTO = '''
+library angular_transformers.auto_modules;
+
+defaultAutoInjector({List modules, String name,
+    bool allowImplicitInjection: false}) => null;
 }
 ''';

@@ -1,6 +1,7 @@
 library angular_transformers.common;
 
 import 'package:analyzer/src/generated/ast.dart';
+import 'package:analyzer/src/generated/element.dart';
 import 'package:source_maps/refactor.dart';
 import 'package:barback/barback.dart';
 
@@ -21,7 +22,7 @@ void addImport(TextEditTransaction transaction, CompilationUnit unit,
   for (var directive in unit.directives) {
     if (directive is ImportDirective) {
       transaction.edit(directive.keyword.offset, directive.keyword.offset,
-          'import "$uri" as $alias;\n');
+          'import \'$uri\' as $alias;\n');
       return;
     } else if (directive is LibraryDirective) {
       libDirective = directive;
@@ -32,7 +33,7 @@ void addImport(TextEditTransaction transaction, CompilationUnit unit,
   if (libDirective != null) {
     transaction.edit(libDirective.endToken.offset + 2,
         libDirective.endToken.offset + 2,
-        'import "$uri" as $alias;\n');
+        'import \'$uri\' as $alias;\n');
   }
 }
 
@@ -49,6 +50,43 @@ class _IdentifierTransformer extends GeneralizingASTVisitor {
     }
     return super.visitNode(node);
   }
+}
+
+/**
+ * Changes all references from original to replacement, maintaining the method
+ * parameters of the original invocation.
+ *
+ * [original] must be a reference to a static function.
+ */
+void transformMethodInvocations(TextEditTransaction transaction,
+    CompilationUnit unit, FunctionElement original, String replacement) {
+  unit.accept(new _FunctionTransformer(transaction, original, replacement));
+}
+
+
+class _FunctionTransformer extends GeneralizingASTVisitor {
+  final TextEditTransaction transaction;
+  final FunctionElement candidate;
+  final String replacement;
+
+  _FunctionTransformer(this.transaction, this.candidate, this.replacement);
+
+  visitMethodInvocation(MethodInvocation m) {
+    if (m.methodName.bestElement == candidate) {
+      if (m.target is SimpleIdentifier) {
+        // Include the prefix in the rename.
+        transaction.edit(m.target.beginToken.offset, m.methodName.endToken.end,
+            replacement);
+      } else {
+        transaction.edit(m.methodName.beginToken.offset,
+            m.methodName.endToken.end, replacement);
+      }
+    }
+    super.visitMethodInvocation(m);
+  }
+
+  // Skip over the contents of imports.
+  visitImportDirective(ImportDirective d) {}
 }
 
 bool canImportAsset(AssetId id) => id.path.startsWith('lib/');

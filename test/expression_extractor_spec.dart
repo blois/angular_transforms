@@ -1,14 +1,15 @@
 library angular_transformers.test.expression_extractor_spec;
 
 import 'package:angular_transformers/options.dart';
+import 'package:angular_transformers/src/expression_generator.dart';
 import 'package:angular_transformers/transformer.dart';
 import 'jasmine_syntax.dart';
 import 'common.dart';
 
 main() {
   describe('expression_extractor', () {
-    var phases = new AngularTransformerGroup(
-        new TransformOptions(dartEntry: 'web/main.dart')).phases;
+    var options = new TransformOptions(dartEntry: 'web/main.dart');
+    var phases = [[new ExpressionGenerator(options)]];
 
     it('should not modify files with no defaultExpressionModule', () {
       return transform(phases,
@@ -18,13 +19,13 @@ main() {
             'angular|lib/core/parser/utils.dart': '',
             'a|web/main.dart': '''
 library foo;
-import "package:angular/angular.dart";
+import 'package:angular/angular.dart';
 '''
           },
           results: {
             'a|web/main.dart': '''
 library foo;
-import "package:angular/angular.dart";
+import 'package:angular/angular.dart';
 '''
           });
     });
@@ -37,7 +38,7 @@ import "package:angular/angular.dart";
             'angular|lib/core/parser/utils.dart': '',
             'a|web/main.dart': '''
 library foo;
-import "package:angular/angular.dart";
+import 'package:angular/angular.dart';
 
 main() {
   ngBootstrap(defaultExpressionModule());
@@ -47,8 +48,8 @@ main() {
           results: {
             'a|web/main.dart': '''
 library foo;
-import "package:a/generated_static_expressions.dart" as generated_static_expressions;
-import "package:angular/angular.dart";
+import 'package:a/generated_static_expressions.dart' as generated_static_expressions;
+import 'package:angular/angular.dart';
 
 main() {
   ngBootstrap(generated_static_expressions.expressionModule());

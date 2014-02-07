@@ -7,7 +7,7 @@ import 'package:barback/barback.dart';
 
 import 'resolver.dart';
 
-
+typedef PrimaryAssetFilter(Asset input);
 /**
  * Transformer which maintains up-to-date resolved ASTs for the specified
  * code entry points.
@@ -18,13 +18,14 @@ import 'resolver.dart';
  * This transformer must be in a phase before any dependent transformers.
  */
 class ResolverTransformer extends Transformer {
-  final TransformOptions options;
   final Map<AssetId, Resolver> _resolvers = {};
+  final PrimaryAssetFilter _primaryAssetFilter;
+  final String _dartSdkDirectory;
 
-  ResolverTransformer(this.options);
+  ResolverTransformer(this._dartSdkDirectory, this._primaryAssetFilter);
 
   Future<bool> isPrimary(Asset input) =>
-      new Future.value(options.isDartEntry(input.id));
+      new Future.value(_primaryAssetFilter(input));
 
   /** Updates the resolved AST for the primary input of the transform. */
   Future apply(Transform transform) {
@@ -38,5 +39,5 @@ class ResolverTransformer extends Transformer {
 
   /** Get a resolver for the AST starting from [id]. */
   Resolver getResolver(AssetId id) =>
-      _resolvers.putIfAbsent(id, () => new Resolver(id, options.sdkDirectory));
+      _resolvers.putIfAbsent(id, () => new Resolver(id, _dartSdkDirectory));
 }

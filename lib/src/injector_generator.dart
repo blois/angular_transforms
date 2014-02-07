@@ -43,7 +43,10 @@ class InjectorGenerator extends Transformer {
         'lib/$GENERATED_INJECTOR');
     transform.addOutput(new Asset.fromString(outputId, injectLibContents));
 
+    _transformAsset(transform);
+
     _logger = null;
+    _resolver = null;
     return new Future.value(null);
 
     // return _generateStaticInjector(transform).then((_) {
@@ -53,15 +56,17 @@ class InjectorGenerator extends Transformer {
     // });
   }
 
-  static const List<String> _defaultInjectableMetaConsts = const [
+  /// Default list of injectable consts
+  static const List<String> _DEFAULT_INJECTABLE_META_CONSTS = const [
     'inject.inject'
   ];
 
+  /** Resolves the classes for the injectable annotations in the current AST. */
   void _resolveInjectableMetadata() {
     _injectableMetaConsts = <TopLevelVariableElement>[];
     _injectableMetaConstructors = <ConstructorElement>[];
 
-    for (var constName in _defaultInjectableMetaConsts) {
+    for (var constName in _DEFAULT_INJECTABLE_META_CONSTS) {
       var variable = _resolver.getLibraryVariable(constName);
       if (variable != null) {
         _injectableMetaConsts.add(variable);
@@ -83,9 +88,10 @@ class InjectorGenerator extends Transformer {
     }
   }
 
+  /** Finds all annotated constructors or annotated classes in the program. */
   Iterable<ConstructorElement> _gatherConstructors() {
     var constructors = _resolver.libraries
-        .expand((lib) => _resolver.getUnits(lib))
+        .expand((lib) => lib.units)
         .expand((compilationUnit) => compilationUnit.types)
         .map(_findInjectedConstructor)
         .where((ctor) => ctor != null).toList();
@@ -95,6 +101,16 @@ class InjectorGenerator extends Transformer {
     return constructors.toSet();
   }
 
+  /**
+   * Get the constructors for all elements in the library @Injectables
+   * statements. These are used to mark types as injectable which would
+   * otherwise not be injected.
+   *
+   * Syntax is:
+   *
+   *     @Injectables(const[ElementName])
+   *     library my.library;
+   */
   Iterable<ConstructorElement> _gatherInjectablesContents() {
     var injectablesClass = _resolver.getType('di.annotations.Injectables');
     if (injectablesClass == null) return const [];
@@ -130,6 +146,28 @@ class InjectorGenerator extends Transformer {
     return ctors;
   }
 
+  /**
+   * Checks if the element is annotated with one of the known injectablee
+   * annotations.
+   */
+  bool _isElementAnnotated(Element e) {
+    for (var meta in e.metadata) {
+      if (meta.element is PropertyAccessorElement &&
+          _injectableMetaConsts.contains(meta.element.variable)) {
+        return true;
+      } else if (meta.element is ConstructorElement &&
+          _injectableMetaConstructors.contains(meta.element)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Find an 'injected' constructor for the given class.
+   * If [noAnnotation] is true then this will assume that the class is marked
+   * for injection and will use the default constructor.
+   */
   ConstructorElement _findInjectedConstructor(ClassElement cls,
       [bool noAnnotation = false]) {
     var classInjectedConstructors = [];
@@ -163,19 +201,10 @@ class InjectorGenerator extends Transformer {
     return ctor;
   }
 
-  bool _isElementAnnotated(Element e) {
-    for (var meta in e.metadata) {
-      if (meta.element is PropertyAccessorElement &&
-          _injectableMetaConsts.contains(meta.element.variable)) {
-        return true;
-      } else if (meta.element is ConstructorElement &&
-          _injectableMetaConstructors.contains(meta.element)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
+  /**
+   * Validates that the constructor is injectable and emits warnings for any
+   * errors.
+   */
   bool _validateConstructor(ConstructorElement ctor) {
     var cls = ctor.enclosingElement;
     if (cls.isAbstract && !ctor.isFactory) {
@@ -232,6 +261,9 @@ class InjectorGenerator extends Transformer {
     return true;
   }
 
+  /**
+   * Creates a library file for the specified constructors.
+   */
   String _generateInjectLibrary(Iterable<ConstructorElement> constructors) {
     var outputBuffer = new StringBuffer();
 
@@ -281,30 +313,37 @@ class InjectorGenerator extends Transformer {
    * and modify all references to defaultAutoInjector to refer to the generated
    * static injector.
    */
-  void _transformPrimarySource(Transform transform, DartLibrary lib) {
-    var transaction = new TextEditTransaction(lib.text, lib.sourceFile);
+  void _transformAsset(Transform transform) {
+    var autoInjector = _resolver.getLibraryFunction(
+        'angular_transformers.auto_modules.defaultAutoInjector');
 
-    transformIdentifiers(transaction, lib.compilationUnit,
-        'defaultAutoInjector',
+    if (autoInjector == null) {
+      _logger.info('Unable to resolve defaultAutoInjector, not transforming '
+          'entry point.');
+      transform.addOutput(transform.primaryInput);
+      return;
+    }
+
+    var lib = _resolver.entryLibrary;
+    var transaction = _resolver.createTextEditTransaction(lib);
+
+    var unit = lib.definingCompilationUnit.node;
+    transformMethodInvocations(transaction, unit, autoInjector,
         'generated_static_injector.createStaticInjector');
 
-    transformIdentifiers(transaction, lib.compilationUnit,
-        'defaultInjectorModule',
-        'generated_static_injector.staticInjectorModule');
-
     if (transaction.hasEdits) {
-      addImport(transaction, lib.compilationUnit,
-          'package:${lib.assetId.package}/$GENERATED_INJECTOR',
+      var id = transform.primaryInput.id;
+
+      addImport(transaction, unit,
+          'package:${id.package}/$GENERATED_INJECTOR',
           'generated_static_injector');
 
-      var id = lib.assetId;
       var printer = transaction.commit();
       var url = id.path.startsWith('lib/')
           ? 'package:${id.package}/${id.path.substring(4)}' : id.path;
       printer.build(url);
       transform.addOutput(new Asset.fromString(id, printer.text));
     } else {
-      // No modifications, so just pass the source through.
       transform.addOutput(transform.primaryInput);
     }
   }

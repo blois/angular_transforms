@@ -80,7 +80,8 @@ _readStringListValue(Map args, String name) {
 }
 
 List<List<Transformer>> _createDeployPhases(TransformOptions options) {
-  var resolver = new ResolverTransformer(options);
+  var resolver = new ResolverTransformer(options.sdkDirectory,
+      (asset) => options.isDartEntry(asset.id));
   return [
     [resolver],
     [new ExpressionGenerator(options)],

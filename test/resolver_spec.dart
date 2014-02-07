@@ -9,12 +9,11 @@ import 'jasmine_syntax.dart';
 
 main() {
   describe('resolver', () {
-    var transformer = new ResolverTransformer(
-        new TransformOptions(
-            dartEntry: 'web/main.dart',
-            sdkDirectory: dartSdkDirectory));
-    var phases = [[transformer]];
     var entryPoint = new AssetId('a', 'web/main.dart');
+    var transformer = new ResolverTransformer(dartSdkDirectory,
+        (asset) => asset.id == entryPoint);
+
+    var phases = [[transformer]];
 
     it('should handle empty files', () {
       return transform(phases,
@@ -222,6 +221,8 @@ class Bar {}
             expect(barType, isNotNull);
             expect(resolver.getAbsoluteImportUri(barType.library).toString(),
                 'package:a/c.dart');
+            expect(resolver.getSourceAssetId(barType),
+                new AssetId('a', 'lib/c.dart'));
 
             var hashMap = resolver.getType('dart.collection.HashMap');
             expect(resolver.getAbsoluteImportUri(hashMap.library).toString(),

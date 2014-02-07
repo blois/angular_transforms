@@ -30,10 +30,8 @@ class ExpressionGenerator extends Transformer {
 
   ExpressionGenerator(this.options);
 
-  Future<bool> isPrimary(Asset input) {
-    print('isPrimary ${input.id}');
-    return new Future.value(options.isDartEntry(input.id));
-  }
+  Future<bool> isPrimary(Asset input) =>
+      new Future.value(options.isDartEntry(input.id));
 
   Future apply(Transform transform) {
     return _generateStaticExpressions(transform).then((_) {
