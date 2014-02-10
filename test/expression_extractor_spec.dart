@@ -3,7 +3,6 @@ library angular_transformers.test.expression_extractor_spec;
 import 'package:angular_transformers/options.dart';
 import 'package:angular_transformers/src/expression_generator.dart';
 import 'package:angular_transformers/src/resolver_transformer.dart';
-import 'package:angular_transformers/transformer.dart';
 import 'jasmine_syntax.dart';
 import 'common.dart';
 
