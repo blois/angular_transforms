@@ -10,6 +10,12 @@ import 'package:barback/barback.dart';
 import 'package:path/path.dart' as path;
 
 
+ /**
+  * The Angular transformer, which internally runs several phases that will:
+  *
+  *   * Extract all expressions for evaluation at runtime without using Mirrors.
+  *   * Extract all classes being dependency injected into a static injector.
+  */
 class AngularTransformerGroup implements TransformerGroup {
   final Iterable<Iterable> phases;
 
@@ -89,8 +95,8 @@ List<List<Transformer>> _createDeployPhases(TransformOptions options) {
       (asset) => options.isDartEntry(asset.id));
   return [
     [resolver],
-    [new ExpressionGenerator(options)],
+    [new ExpressionGenerator(options, resolver)],
     [new InjectorGenerator(options, resolver)],
-    [new MetadataGenerator(options)],
+    [new MetadataGenerator(options, resolver)],
   ];
 }

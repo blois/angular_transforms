@@ -4,13 +4,53 @@ import 'package:analyzer/src/generated/ast.dart';
 import 'package:analyzer/src/generated/element.dart';
 import 'package:source_maps/refactor.dart';
 import 'package:barback/barback.dart';
+import 'resolver.dart';
+
 
 /**
- * Transforms all simple identifiers of [name] to be [replacement].
+ * Transforms all simple identifiers of [identifier] to be [replacement] in the
+ * entry point of the application.
+ *
+ * This will resolve the full name of [identifier] and warn if it cannot be
+ * resolved.
+ *
+ * If the identifier is found and modifications are made then an import will be
+ * added to the file indicated by [generatedFilename].
  */
-void transformIdentifiers(TextEditTransaction transaction, CompilationUnit unit,
-    String name, String replacement) {
-  unit.accept(new _IdentifierTransformer(transaction, name, replacement));
+void transformIdentifiers(Transform transform, Resolver resolver,
+    {String identifier, String replacement, String generatedFilename,
+    String importPrefix}) {
+
+  var identifierElement = resolver.getLibraryVariable(identifier);
+
+  if (identifierElement == null) {
+    transform.logger.info('Unable to resolve $identifier, not '
+        'transforming entry point.');
+    transform.addOutput(transform.primaryInput);
+    return;
+  }
+
+  var lib = resolver.entryLibrary;
+  var id = transform.primaryInput.id;
+  var transaction = resolver.createTextEditTransaction(lib);
+  var unit = lib.definingCompilationUnit.node;
+
+  unit.accept(new _IdentifierTransformer(transaction, identifierElement,
+      '$importPrefix.$replacement'));
+
+  if (transaction.hasEdits) {
+    addImport(transaction, unit,
+      'package:${id.package}/$generatedFilename', importPrefix);
+
+    var printer = transaction.commit();
+    var url = id.path.startsWith('lib/')
+        ? 'package:${id.package}/${id.path.substring(4)}' : id.path;
+    printer.build(url);
+    transform.addOutput(new Asset.fromString(id, printer.text));
+  } else {
+    // No modifications, so just pass the source through.
+    transform.addOutput(transform.primaryInput);
+  }
 }
 
 /**
@@ -39,17 +79,29 @@ void addImport(TextEditTransaction transaction, CompilationUnit unit,
 
 class _IdentifierTransformer extends GeneralizingASTVisitor {
   final TextEditTransaction transaction;
-  final String name;
+  final TopLevelVariableElement original;
   final String replacement;
 
-  _IdentifierTransformer(this.transaction, this.name, this.replacement);
+  _IdentifierTransformer(this.transaction, this.original, this.replacement);
 
-  visitNode(ASTNode node) {
-    if (node is SimpleIdentifier && node.name == name) {
-      transaction.edit(node.offset, node.end, replacement);
+  visitSimpleIdentifier(SimpleIdentifier node) {
+    if (node.bestElement == original.getter) {
+      transaction.edit(node.beginToken.offset, node.endToken.end, replacement);
     }
-    return super.visitNode(node);
+    super.visitSimpleIdentifier(node);
   }
+
+  visitPrefixedIdentifier(PrefixedIdentifier node) {
+    if (node.bestElement == original.getter) {
+      transaction.edit(node.beginToken.offset, node.endToken.end, replacement);
+      return;
+    }
+
+    super.visitPrefixedIdentifier(node);
+  }
+
+  // Skip over the contents of imports.
+  visitImportDirective(ImportDirective d) {}
 }
 
 /**

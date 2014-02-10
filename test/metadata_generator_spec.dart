@@ -3,6 +3,7 @@ library angular_transformers.test.metadata_generator;
 import 'package:angular_transformers/options.dart';
 import 'package:angular_transformers/transformer.dart';
 import 'package:angular_transformers/src/metadata_generator.dart';
+import 'package:angular_transformers/src/resolver_transformer.dart';
 import 'jasmine_syntax.dart';
 import 'common.dart';
 
@@ -11,9 +12,17 @@ import 'common.dart';
 
 main() {
   describe('metadata_generator', () {
-    var phases = [[
-      new MetadataGenerator(
-        new TransformOptions(dartEntry: 'web/main.dart'))]];
+    var options = new TransformOptions(
+        dartEntry: 'web/main.dart',
+        sdkDirectory: dartSdkDirectory);
+
+    var resolver = new ResolverTransformer(dartSdkDirectory,
+        (asset) => options.isDartEntry(asset.id));
+
+    var phases = [
+      [resolver],
+      [new MetadataGenerator(options, resolver)]
+    ];
 
     it('should extract member metadata', () {
       return transform(phases,

@@ -1,6 +1,9 @@
 library angular_transformers.expression_generator;
 
 import 'dart:async';
+import 'package:angular/tools/source_crawler.dart';
+import 'package:angular/tools/html_extractor.dart';
+import 'package:angular/tools/source_metadata_extractor.dart';
 import 'package:angular/core/module.dart';
 import 'package:angular/core/parser/parser.dart';
 import 'package:angular/tools/parser_generator/generator.dart';
@@ -11,11 +14,11 @@ import 'package:di/dynamic_injector.dart';
 import 'package:path/path.dart' as path;
 import 'package:source_maps/refactor.dart';
 
-import 'source_metadata_extractor.dart';
-import 'asset_libraries.dart';
 import 'common.dart';
+import 'resolver.dart';
+import 'resolver_transformer.dart';
 
-const String GENERATED_EXPRESSIONS = 'generated_static_expressions.dart';
+const String generatedExpressionFilename = 'generated_static_expressions.dart';
 
 /**
  * Transformer which gathers all expressions from the HTML source files and
@@ -27,81 +30,68 @@ const String GENERATED_EXPRESSIONS = 'generated_static_expressions.dart';
  */
 class ExpressionGenerator extends Transformer {
   final TransformOptions options;
+  final ResolverTransformer resolvers;
 
-  ExpressionGenerator(this.options);
+  ExpressionGenerator(this.options, this.resolvers);
 
   Future<bool> isPrimary(Asset input) =>
       new Future.value(options.isDartEntry(input.id));
 
   Future apply(Transform transform) {
-    return _generateStaticExpressions(transform).then((_) {
+    return _generateExpressions(transform).then((_) {
       // Workaround for dartbug.com/16120- do not send data across the isolate
       // boundaries.
       return null;
     });
   }
 
-  Future<String> _generateStaticExpressions(Transform transform) {
+  Future<String> _generateExpressions(Transform transform) {
     var asset = transform.primaryInput;
+    var resolver = this.resolvers.getResolver(asset.id);
+
     var outputBuffer = new StringBuffer();
 
     _writeStaticExpressionHeader(asset.id, outputBuffer);
 
-    var module = new Module()
-      ..type(FilterMap, implementedBy: NullFilterMap)
-      ..type(Parser, implementedBy: DynamicParser)
-      ..type(ParserBackend, implementedBy: DynamicParserBackend)
-      ..value(SourcePrinter, new _StreamPrinter(outputBuffer));
-    var injector =
-        new DynamicInjector(modules: [module], allowImplicitInjection: true);
+    var sourceMetadataExtractor = new SourceMetadataExtractor();
+    List<DirectiveInfo> directives =
+        sourceMetadataExtractor.gatherDirectiveInfo(null,
+        new _LibrarySourceCrawler(resolver.libraries));
 
-    var libs = crawlLibraries(transform, asset);
-    // The first lib file is always the entry file, update that to include
-    // the generated expressions.
-    libs.first.then((lib) {
-      _transformPrimarySource(transform, lib);
-    });
+    var htmlExtractor = new HtmlExpressionExtractor(directives);
+    return _getHtmlSources(transform)
+        .forEach(htmlExtractor.parseHtml)
+        .then((_) {
+      var module = new Module()
+        ..type(FilterMap, implementedBy: NullFilterMap)
+        ..type(Parser, implementedBy: DynamicParser)
+        ..type(ParserBackend, implementedBy: DynamicParserBackend)
+        ..value(SourcePrinter, new _StreamPrinter(outputBuffer));
+      var injector =
+          new DynamicInjector(modules: [module], allowImplicitInjection: true);
 
-    var units = libs.expand((lib) => lib.compilationUnits);
-    var html = _getHtmlSources(transform);
-
-    return gatherExpressions(units, html).then((expressions) {
-      injector.get(ParserGenerator).generateParser(expressions);
+      injector.get(ParserGenerator).generateParser(htmlExtractor.expressions);
 
       var outputId =
-          new AssetId(asset.id.package, 'lib/$GENERATED_EXPRESSIONS');
+          new AssetId(asset.id.package, 'lib/$generatedExpressionFilename');
       transform.addOutput(
             new Asset.fromString(outputId, outputBuffer.toString()));
+
+      _transformAsset(transform, resolver);
     });
   }
 
   /**
-   * Modify the primary asset of the transform to import the generated source
-   * and modify all references to NG_EXPRESSION_MODULE to refer to the generated
-   * expression.
+   * Modify the asset of to import the generated source and modify all
+   * references to angular_transformers.auto_modules.defaultExpressionModule to
+   * refer to the generated expressions.
    */
-  void _transformPrimarySource(Transform transform, DartLibrary lib) {
-    var transaction = new TextEditTransaction(lib.text, lib.sourceFile);
-
-    transformIdentifiers(transaction, lib.compilationUnit,
-        'defaultExpressionModule',
-        'generated_static_expressions.expressionModule');
-
-    if (transaction.hasEdits) {
-      addImport(transaction, lib.compilationUnit,
-          'package:${lib.assetId.package}/$GENERATED_EXPRESSIONS',
-          'generated_static_expressions');
-
-      var id = lib.assetId;
-      var printer = transaction.commit();
-      var url = id.path.startsWith('lib/')
-          ? 'package:${id.package}/${id.path.substring(4)}' : id.path;
-      printer.build(url);
-      transform.addOutput(new Asset.fromString(id, printer.text));
-    } else {
-      // No modifications, so just pass the source through.
-      transform.addOutput(transform.primaryInput);
-    }
+  void _transformAsset(Transform transform, Resolver resolver) {
+    transformIdentifiers(transform, resolver,
+        identifier: 'angular_transformers.auto_modules.defaultExpressionModule',
+        replacement: 'expressionModule',
+        importPrefix: 'generated_static_expressions',
+        generatedFilename: generatedExpressionFilename);
   }
 
   /**
@@ -151,8 +141,8 @@ typedef Function FilterLookup(String filterName);
 
 @NgInjectableService()
 class GeneratedStaticParserFunctions extends StaticParserFunctions {
-  GeneratedStaticParserFunctions(FilterMap filters) :
-      super(buildEval(filters), buildAssign(filters));
+  GeneratedStaticParserFunctions() :
+      super(buildEval(), buildAssign());
 }
 ''');
 }
@@ -164,5 +154,17 @@ class _StreamPrinter implements SourcePrinter {
 
   printSrc(src) {
     _sink.write('$src\n');
+  }
+}
+
+
+class _LibrarySourceCrawler implements SourceCrawler {
+  final List<LibraryElement> libraries;
+  _LibrarySourceCrawler(this.libraries);
+
+  void crawl(String entryPoint, CompilationUnitVisitor visitor) {
+    libraries.expand((lib) => lib.units)
+        .map((compilationUnitElement) => compilationUnitElement.node)
+        .forEach(visitor);
   }
 }

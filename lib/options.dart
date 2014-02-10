@@ -15,9 +15,8 @@ class TransformOptions {
 
   /**
    * List of html file paths which may contain Angular expressions.
-   * The paths are relative to the package root and
-   * are represented using posix style, which matches the representation used in
-   * asset ids in barback.
+   * The paths are relative to the package home and are represented using posix
+   * style, which matches the representation used in asset ids in barback.
    */
   final List<String> htmlFiles;
 
@@ -40,17 +39,18 @@ class TransformOptions {
   TransformOptions({String dartEntry,
       String sdkDirectory, List<String> htmlFiles,
       List<String> injectableAnnotations, List<String> injectedTypes})
-    : this.dartEntry = _systemToAssetPath(dartEntry),
-      this.sdkDirectory = sdkDirectory,
-      this.htmlFiles = htmlFiles != null ? htmlFiles : [],
-      this.injectableAnnotations =
+    : dartEntry = _systemToAssetPath(dartEntry),
+      sdkDirectory = sdkDirectory,
+      htmlFiles = htmlFiles != null ? htmlFiles : [],
+      injectableAnnotations =
           injectableAnnotations != null ? injectableAnnotations : [],
-      this.injectedTypes =
+      injectedTypes =
           new Set.from(injectedTypes != null ? injectedTypes : []) {
     if (sdkDirectory == null)
       throw new ArgumentError('sdkDirectory must be provided.');
   }
 
+  // Don't need to check package as transformers only run for primary package.
   bool isDartEntry(AssetId id) => id.path == dartEntry || dartEntry == '*';
 }
 

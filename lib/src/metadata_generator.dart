@@ -9,13 +9,16 @@ import 'package:source_maps/refactor.dart';
 import 'asset_libraries.dart';
 import 'common.dart';
 import 'metadata_extractor.dart';
+import 'resolver.dart';
+import 'resolver_transformer.dart';
 
-const String GENERATED_METADATA = 'generated_metadata.dart';
+const String generatedMetadataFilename = 'generated_metadata.dart';
 
 class MetadataGenerator extends Transformer {
   final TransformOptions options;
+  final ResolverTransformer resolvers;
 
-  MetadataGenerator(this.options);
+  MetadataGenerator(this.options, this.resolvers);
 
   Future<bool> isPrimary(Asset input) => new Future.value(
       options.isDartEntry(input.id));
@@ -30,16 +33,14 @@ class MetadataGenerator extends Transformer {
 
   Future<String> _generateMetadata(Transform transform) {
     var asset = transform.primaryInput;
+    var resolver = this.resolvers.getResolver(asset.id);
     var outputBuffer = new StringBuffer();
 
     _writeHeader(asset.id, outputBuffer);
 
     var libs = crawlLibraries(transform, asset);
-    // The first lib file is always the entry file, update that to include
-    // the generated expressions.
-    libs.first.then((lib) {
-      _transformPrimarySource(transform, lib);
-    });
+
+    _transformAsset(transform, resolver);
 
     return libs.map((s) => gatherAnnotatedLibraries(s, options))
         .where((l) => l != null)
@@ -65,46 +66,27 @@ class MetadataGenerator extends Transformer {
       for (var lib in libs) {
         var prefix = 'import_${index++}';
         lib.writeMemberAnnotations(outputBuffer, prefix);
-        //constructor.writeGenerators(outputBuffer, prefix);
       }
       _writeMemberEpilogue(outputBuffer);
 
-      //_writeFooter(outputBuffer);
-
       var outputId =
-          new AssetId(asset.id.package, 'lib/$GENERATED_METADATA');
+          new AssetId(asset.id.package, 'lib/$generatedMetadataFilename');
       transform.addOutput(
             new Asset.fromString(outputId, outputBuffer.toString()));
     });
   }
 
   /**
-   * Modify the primary asset of the transform to import the generated source
-   * and modify all references to defaultAutoInjector to refer to the generated
-   * static injector.
+   * Modify the asset of to import the generated source and modify all
+   * references to angular_transformers.auto_modules.defaultMetadataModule to
+   * refer to the generated expressions.
    */
-  void _transformPrimarySource(Transform transform, DartLibrary lib) {
-    var transaction = new TextEditTransaction(lib.text, lib.sourceFile);
-
-    transformIdentifiers(transaction, lib.compilationUnit,
-        'defaultMetadataModule',
-        'generated_metadata.metadataModule');
-
-    if (transaction.hasEdits) {
-      addImport(transaction, lib.compilationUnit,
-          'package:${lib.assetId.package}/$GENERATED_METADATA',
-          'generated_metadata');
-
-      var id = lib.assetId;
-      var printer = transaction.commit();
-      var url = id.path.startsWith('lib/')
-          ? 'package:${id.package}/${id.path.substring(4)}' : id.path;
-      printer.build(url);
-      transform.addOutput(new Asset.fromString(id, printer.text));
-    } else {
-      // No modifications, so just pass the source through.
-      transform.addOutput(transform.primaryInput);
-    }
+  void _transformAsset(Transform transform, Resolver resolver) {
+    transformIdentifiers(transform, resolver,
+        identifier: 'angular_transformers.auto_modules.defaultMetadataModule',
+        replacement: 'metadataModule',
+        importPrefix: 'generated_metadata',
+        generatedFilename: generatedMetadataFilename);
   }
 }
 

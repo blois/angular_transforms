@@ -6,7 +6,7 @@ import 'package:analyzer/src/generated/element.dart';
 import 'package:analyzer/src/generated/engine.dart';
 import 'package:analyzer/src/generated/error.dart';
 import 'package:analyzer/src/generated/java_core.dart' show CharSequence;
-import 'package:analyzer/src/generated/java_io.dart' show JavaSystemIO, JavaFile;
+import 'package:analyzer/src/generated/java_io.dart';
 import 'package:analyzer/src/generated/parser.dart' show Parser;
 import 'package:analyzer/src/generated/scanner.dart';
 import 'package:analyzer/src/generated/sdk.dart' show DartSdk;
@@ -14,8 +14,8 @@ import 'package:analyzer/src/generated/sdk_io.dart' show DirectoryBasedDartSdk;
 import 'package:analyzer/src/generated/source.dart';
 import 'package:barback/barback.dart';
 import 'package:path/path.dart' as path;
-import 'package:source_maps/span.dart' show SourceFile, Span;
 import 'package:source_maps/refactor.dart';
+import 'package:source_maps/span.dart' show SourceFile, Span;
 
 /**
  * Resolves an AST based on Barback-based assets.
@@ -28,8 +28,11 @@ class Resolver {
   final AssetId entryPoint;
 
   final AnalysisContext _context =
-    AnalysisEngine.instance.createAnalysisContext();
+      AnalysisEngine.instance.createAnalysisContext();
+
+  /** Transform for which this is currently updating. */
   Transform _currentTransform;
+  /** The currently resolved library, or null if unresolved. */
   LibraryElement _entryLibrary;
 
   /**
@@ -124,15 +127,10 @@ class Resolver {
         sources.remove(unreachable);
       }
 
-      for (var added in addedSources) {
-        changeSet.added(added);
-      }
-      for (var changed in changedSources) {
-        changeSet.changed(changed);
-      }
-      for (var removed in removedSources) {
-        changeSet.removed(removed);
-      }
+      addedSources.forEach(changeSet.added);
+      changedSources.forEach(changeSet.changed);
+      removedSources.forEach(changeSet.removed);
+
       _context.applyChanges(changeSet);
       _entryLibrary = _context.computeLibraryElement(sources[entryPoint]);
 

@@ -58,10 +58,10 @@ class BarbackOptions {
       this.followLinks: false})
       : currentPackage = (currentPackage != null
           ? currentPackage : readCurrentPackageFromPubspec()),
-        packageDirs = (packageDirs != null
-          ? packageDirs : readPackageDirsFromPub(Directory.current.path)),
         packageHome = (packageHome != null
-          ? packageHome : Directory.current.path);
+          ? packageHome : Directory.current.path),
+        packageDirs = (packageDirs != null
+          ? packageDirs : readPackageDirsFromPub(this.packageHome));
 
 }
 
