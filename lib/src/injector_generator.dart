@@ -14,7 +14,7 @@ import 'common.dart';
 import 'resolver.dart';
 import 'resolver_transformer.dart';
 
-const String GENERATED_INJECTOR = 'generated_static_injector.dart';
+const String _generateInjector = 'generated_static_injector.dart';
 
 class InjectorGenerator extends Transformer {
   final TransformOptions options;
@@ -39,7 +39,7 @@ class InjectorGenerator extends Transformer {
     var injectLibContents = _generateInjectLibrary(constructors);
 
     var outputId = new AssetId(transform.primaryInput.id.package,
-        'lib/$GENERATED_INJECTOR');
+        'lib/$_generateInjector');
     transform.addOutput(new Asset.fromString(outputId, injectLibContents));
 
     _transformAsset(transform);
@@ -50,7 +50,7 @@ class InjectorGenerator extends Transformer {
   }
 
   /** Default list of injectable consts */
-  static const List<String> _DEFAULT_INJECTABLE_META_CONSTS = const [
+  static const List<String> _defaultInjectableMetaConsts = const [
     'inject.inject'
   ];
 
@@ -59,7 +59,7 @@ class InjectorGenerator extends Transformer {
     _injectableMetaConsts = <TopLevelVariableElement>[];
     _injectableMetaConstructors = <ConstructorElement>[];
 
-    for (var constName in _DEFAULT_INJECTABLE_META_CONSTS) {
+    for (var constName in _defaultInjectableMetaConsts) {
       var variable = _resolver.getLibraryVariable(constName);
       if (variable != null) {
         _injectableMetaConsts.add(variable);
@@ -344,7 +344,7 @@ class InjectorGenerator extends Transformer {
       var id = transform.primaryInput.id;
 
       addImport(transaction, unit,
-          'package:${id.package}/$GENERATED_INJECTOR',
+          'package:${id.package}/$_generateInjector',
           'generated_static_injector');
 
       var printer = transaction.commit();

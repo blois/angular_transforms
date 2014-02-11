@@ -1,176 +1,269 @@
 library angular_transformers.metadata_extractor;
 
 import 'package:analyzer/src/generated/ast.dart';
-import 'package:angular_transformers/options.dart';
+import 'package:analyzer/src/generated/element.dart';
 import 'package:barback/barback.dart';
-import 'asset_libraries.dart';
-import 'common.dart';
+import 'resolver.dart';
 
-class LibraryInfo {
-  final AssetId assetId;
-  final List<AnnotatedClass> classes = <AnnotatedClass>[];
-  final List<ImportDirective> imports = <ImportDirective>[];
+class AnnotatedType {
+  final ClassElement type;
+  List<Annotation> annotations;
 
-  LibraryInfo(this.assetId);
+  final Map<String, Annotation> members = <String, Annotation>{};
 
-  void writeImports(StringSink sink, String prefix) {
-    var hasClassAnnotations = classes.any((c) => !c.annotations.isEmpty);
-    if (hasClassAnnotations) {
-      sink.write('import \'dart:core\' as $prefix;\n');
-    }
-    var baseUri =
-        Uri.parse('package:${assetId.package}/${assetId.path.substring(4)}');
-    sink.write('import \'$baseUri\' as $prefix;\n');
+  AnnotatedType(this.type);
 
-    if (!hasClassAnnotations) return;
+  /**
+   * Finds all the libraries referenced by the annotations
+   */
+  Iterable<LibraryElement> get referencedLibraries {
+    var libs = new Set();
+    libs.add(type.library);
 
-    for (var imprt in imports) {
-      var importPrefix =
-          imprt.prefix == null ? prefix : '${prefix}_${imprt.prefix.name}';
-
-      var uri = baseUri.resolve(imprt.uri.stringValue);
-      sink.write('import \'$uri\' as $importPrefix;\n');
-    }
-  }
-
-  void writeClassAnnotations(StringSink sink, String prefix) {
-    for (var cls in classes) {
-      cls.writeClassAnnotations(sink, prefix);
-    }
-  }
-
-  void writeMemberAnnotations(StringSink sink, String prefix) {
-    for (var cls in classes) {
-      cls.writeMemberAnnotations(sink, prefix);
-    }
-  }
-}
-
-class AnnotatedClass {
-  final ClassDeclaration cls;
-  final Map<String, Annotation> members = {};
-  final List<Annotation> annotations = [];
-
-  AnnotatedClass(this.cls);
-
-  void writeClassAnnotations(StringSink sink, String prefix) {
-    if (annotations.isEmpty) return;
-
-    sink.write('  $prefix.${cls.name}: [\n');
+    var libCollector = new _LibraryCollector();
     for (var annotation in annotations) {
-      var ann = annotation.toString().substring(1);
-      if (annotation.arguments != null) {
-        sink.write('    const $prefix.$ann,\n');
+      annotation.accept(libCollector);
+    }
+    for (var annotation in members.values) {
+      annotation.accept(libCollector);
+    }
+    libs.addAll(libCollector.libraries);
+
+    return libs;
+  }
+
+  void writeClassAnnotations(StringBuffer sink,
+      Map<LibraryElement, String> prefixes) {
+    sink.write('  ${prefixes[type.library]}${type.name}: [\n');
+    var writer = new _AnnotationWriter(sink, prefixes);
+    for (var annotation in annotations) {
+      sink.write('    ');
+      if (writer.writeAnnotation(annotation)) {
+        sink.write(',\n');
       } else {
-        sink.write('    $prefix.$ann,\n');
+        sink.write('null,\n');
       }
     }
     sink.write('  ],\n');
   }
 
-  void writeMemberAnnotations(StringSink sink, String prefix) {
+  void writeMemberAnnotations(StringBuffer sink,
+      Map<LibraryElement, String> prefixes) {
     if (members.isEmpty) return;
 
-    sink.write('  $prefix.${cls.name}: {\n');
-    for (var member in members.keys) {
-      var ann = members[member].toString().substring(1);
-      sink.write('    \'$member\': const $ann,\n');
-    }
+    sink.write('  ${prefixes[type.library]}${type.name}: {\n');
+
+    var writer = new _AnnotationWriter(sink, prefixes);
+    members.forEach((memberName, annotation) {
+      sink.write('    \'$memberName\': ');
+      if (writer.writeAnnotation(annotation)) {
+        sink.write(',\n');
+      } else {
+        sink.write('null,\n');
+      }
+    });
     sink.write('  },\n');
   }
 }
 
-LibraryInfo gatherAnnotatedLibraries(DartLibrary lib, TransformOptions options) {
-  var visitor = new _ASTVisitor(new LibraryInfo(lib.assetId), lib,
-      options);
-
-  for (var compilationUnit in lib.compilationUnits) {
-    compilationUnit.visitChildren(visitor);
-  }
-
-  if (!visitor.lib.classes.isEmpty) {
-    if (!canImportAsset(lib.assetId)) {
-      var cls = visitor.lib.classes.first.cls;
-      lib.logger.warning('${visitor.lib.assetId} cannot contain annotated '
-          'because it cannot be imported (must be in a lib folder).',
-          asset: lib.assetId, span: lib.getSpan(cls));
-      return null;
+/**
+ * Helper which finds all libraries referenced within the provided AST.
+ */
+class _LibraryCollector extends GeneralizingASTVisitor {
+  final Set<LibraryElement> libraries = new Set<LibraryElement>();
+  void visitSimpleIdentifier(SimpleIdentifier s) {
+    var element = s.bestElement;
+    if (element != null) {
+      libraries.add(element.library);
     }
-    return visitor.lib;
   }
-  return null;
 }
 
-class _ASTVisitor extends GeneralizingASTVisitor {
-  final LibraryInfo lib;
-  final DartLibrary source;
-  final TransformOptions options;
+/**
+ * Helper class which writes annotations out to the buffer.
+ * This does not support every syntax possible, but will return false when
+ * the annotation cannot be serialized.
+ */
+class _AnnotationWriter {
+  final StringBuffer sink;
+  final Map<LibraryElement, String> prefixes;
 
-  _ASTVisitor(this.lib, this.source, this.options);
+  _AnnotationWriter(this.sink, this.prefixes);
 
-  // Skip everything other than imports and classes.
-  visitNode(ASTNode node) {}
-
-  visitImportDirective(ImportDirective node) {
-    lib.imports.add(node);
+  /**
+   * Returns true if the annotation was successfully serialized.
+   * If the annotation could not be written then the buffer is returned to its
+   * original state.
+   */
+  bool writeAnnotation(Annotation annotation) {
+    // Record the current location in the buffer and if writing fails then
+    // back up the buffer to where we started.
+    var len = sink.length;
+    if (!_writeAnnotation(annotation)) {
+      var str = sink.toString();
+      sink.clear();
+      sink.write(str.substring(0, len));
+      return false;
+    }
+    return true;
   }
 
-  visitClassDeclaration(ClassDeclaration cls) {
-    var annotatedClass = null;
-    if (!cls.metadata.isEmpty) {
-      annotatedClass = new AnnotatedClass(cls);
-      lib.classes.add(annotatedClass);
-      for (var annotation in cls.metadata) {
-        annotatedClass.annotations.add(annotation);
-      }
+   bool _writeAnnotation(Annotation annotation) {
+    var element = annotation.element;
+    if (element is ConstructorElement) {
+      sink.write('const ${prefixes[element.library]}'
+          '${element.enclosingElement.name}(');
+      if (!_writeArguments(annotation)) return false;
+      sink.write(')');
+      return true;
+    } else if (element is PropertyAccessorElement) {
+      sink.write('${prefixes[element.library]}${element.name}');
+      return true;
     }
 
-    for (var member in cls.members) {
-      for (var annotation in member.metadata) {
-        if (isAngularMetadata(annotation)) {
-          var added = false;
-          if (annotatedClass == null) {
-            annotatedClass = new AnnotatedClass(cls);
-            lib.classes.add(annotatedClass);
-          }
-          var memberName;
+    return false;
+  }
 
-          if (member is FieldDeclaration) {
-            FieldDeclaration fieldDeclaration = member;
-            var fields = fieldDeclaration.fields.variables;
-            for (var field in fields) {
-              var fieldName = field.name.name;
-              if (fieldName != null) {
-                memberName = fieldName;
-                break;
-              }
-            }
-          }
-          else if (member is MethodDeclaration) {
-            memberName = member.name.name;
-          }
+  /** Writes the arguments for a type constructor. */
+  bool _writeArguments(Annotation annotation) {
+    var args = annotation.arguments;
+    for (var arg in args.arguments) {
+      if (arg is NamedExpression) {
+        sink.write('${arg.name.label.name}: ');
+        if (!_writeExpression(arg.expression)) return false;
+      } else {
+        if (!_writeExpression(arg)) return false;
+      }
+    }
+    return true;
+  }
 
-          if (memberName == null) {
-            print('FAILED ${member.runtimeType} ${member} has ${annotation}');
-          }
+  /** Writes an expression. */
+  bool _writeExpression(Expression expression) {
+    if (expression is StringLiteral) {
+      var str = expression.stringValue;
+      str = str.replaceAll('\'', '\\\'');
+      sink.write('\'$str\'');
+      return true;
+    }
+    if (expression is ListLiteral) {
+      sink.write('const [');
+      for (var element in expression.elements) {
+        if (!_writeExpression(element)) return false;
+        sink.write(',');
+      }
+      sink.write(']');
+      return true;
+    }
+    if (expression is MapLiteral) {
+      sink.write('const {');
+      for (var entry in expression.entries) {
+        if (!_writeExpression(entry.key)) return false;
+        sink.write(': ');
+        if (!_writeExpression(entry.value)) return false;
+      }
+      sink.write('}');
+      return true;
+    }
+    if (expression is SimpleIdentifier) {
+      var element = expression.bestElement;
+      if (element is ClassElement) {
+        sink.write('${prefixes[element.library]}${element.name}');
+        return true;
+      }
+    }
+    return false;
+  }
+}
 
-          if (annotatedClass.members.containsKey(memberName)) {
-            source.logger.warning('$memberName can only have one annotation.',
-                asset: lib.assetId, span: source.getSpan(member));
-          }
-          annotatedClass.members[memberName] = annotation;
-        }
+class AnnotationExtractor {
+  final TransformLogger logger;
+  final Resolver resolver;
+
+  static const List<String> _angularAnnotationNames = const [
+    'angular.core.NgAttr',
+    'angular.core.NgOneWay',
+    'angular.core.NgOneWayOneTime',
+    'angular.core.NgTwoWay',
+    'angular.core.NgCallback'
+  ];
+
+  final List _annotationElements = [];
+
+  AnnotationExtractor(this.logger, this.resolver) {
+    for (var annotation in _angularAnnotationNames) {
+      var type = resolver.getType(annotation);
+      if (type == null) {
+        logger.warning('Unable to resolve $annotation, skipping metadata.');
+        continue;
+      }
+      _annotationElements.add(type.unnamedConstructor);
+    }
+  }
+
+  AnnotatedType extractAnnotations(ClassElement cls) {
+    if (resolver.getAbsoluteImportUri(cls.library) == null) {
+      logger.warning('Dropping annotations for ${cls.name} because the '
+          'containing file cannot be imported (must be in a lib folder).',
+          asset: resolver.getSourceAssetId(cls),
+          span: resolver.getSourceSpan(cls));
+      return null;
+    }
+
+    var visitor = new _AnnotationVisitor(_annotationElements);
+    cls.node.accept(visitor);
+
+    if (!visitor.hasAnnotations) return null;
+
+    var type = new AnnotatedType(cls);
+    type.annotations = visitor.classAnnotations;
+
+    visitor.memberAnnotations.forEach((memberName, annotations) {
+      if (annotations.length > 1) {
+        logger.warning('$memberName can only have one annotation.',
+            asset: resolver.getSourceAssetId(annotations[0].parent.element),
+            span: resolver.getSourceSpan(annotations[0].parent.element));
+        return;
+      }
+
+      type.members[memberName] = annotations[0];
+    });
+
+    if (type.annotations.isEmpty && type.members.isEmpty) return null;
+
+    return type;
+  }
+}
+
+
+/**
+ * AST visitor which walks the current AST and finds all annotated
+ * classes and members.
+ */
+class _AnnotationVisitor extends GeneralizingASTVisitor {
+  final List<Element> allowedMemberAnnotations;
+  final List<Annotation> classAnnotations = [];
+  final Map<String, List<Annotation>> memberAnnotations = {};
+
+  _AnnotationVisitor(this.allowedMemberAnnotations);
+
+  void visitAnnotation(Annotation annotation) {
+    var parent = annotation.parent;
+    if (parent is! Declaration) return;
+
+    if (parent.element is ClassElement) {
+      classAnnotations.add(annotation);
+    } else if (allowedMemberAnnotations.contains(annotation.element)) {
+      if (parent is MethodDeclaration) {
+        memberAnnotations.putIfAbsent(parent.name.name, () => [])
+            .add(annotation);
+      } else if (parent is FieldDeclaration) {
+        var name = parent.fields.variables.first.name.name;
+        memberAnnotations.putIfAbsent(name, () => []).add(annotation);
       }
     }
   }
 
-  static Set<String> _ngAnnotations = new Set<String>.from([
-    'NgAttr',
-    'NgOneWay',
-    'NgOneWayOneTime',
-    'NgTwoWay',
-    'NgCallback'
-  ]);
-  bool isAngularMetadata(Annotation annotation) =>
-      _ngAnnotations.contains(annotation.name.name);
+  bool get hasAnnotations =>
+      !classAnnotations.isEmpty || !memberAnnotations.isEmpty;
 }

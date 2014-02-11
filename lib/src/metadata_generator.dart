@@ -1,12 +1,11 @@
 library angular_transformers.metadata_generator;
 
 import 'dart:async';
+import 'package:analyzer/src/generated/element.dart';
 import 'package:angular_transformers/options.dart';
 import 'package:barback/barback.dart';
 import 'package:path/path.dart' as path;
-import 'package:source_maps/refactor.dart';
 
-import 'asset_libraries.dart';
 import 'common.dart';
 import 'metadata_extractor.dart';
 import 'resolver.dart';
@@ -24,56 +23,58 @@ class MetadataGenerator extends Transformer {
       options.isDartEntry(input.id));
 
   Future apply(Transform transform) {
-    return _generateMetadata(transform).then((_) {
-      // Workaround for dartbug.com/16120- do not send data across the isolate
-      // boundaries.
-      return null;
-    });
-  }
-
-  Future<String> _generateMetadata(Transform transform) {
     var asset = transform.primaryInput;
     var resolver = this.resolvers.getResolver(asset.id);
-    var outputBuffer = new StringBuffer();
 
+    var extractor = new AnnotationExtractor(transform.logger, resolver);
+
+    var outputBuffer = new StringBuffer();
     _writeHeader(asset.id, outputBuffer);
 
-    var libs = crawlLibraries(transform, asset);
+    var annotatedTypes = resolver.libraries
+        .where((lib) => !lib.isInSdk)
+        .expand((lib) => lib.units)
+        .expand((unit) => unit.types)
+        .map(extractor.extractAnnotations)
+        .where((annotations) => annotations != null).toList();
 
-    _transformAsset(transform, resolver);
+    var libs = annotatedTypes.expand((type) => type.referencedLibraries)
+        .toSet();
 
-    return libs.map((s) => gatherAnnotatedLibraries(s, options))
-        .where((l) => l != null)
-        .toList().then((libs) {
-
-      var index = 0;
-      for (var lib in libs) {
-        var prefix = 'import_${index++}';
-        lib.writeImports(outputBuffer, prefix);
+    var importPrefixes = <LibraryElement, String>{};
+    var index = 0;
+    for (var lib in libs) {
+      if (lib.isDartCore) {
+        importPrefixes[lib] = '';
+        continue;
       }
-      _writePreamble(outputBuffer);
 
-      _writeClassPreamble(outputBuffer);
-      index = 0;
-      for (var lib in libs) {
-        var prefix = 'import_${index++}';
-        lib.writeClassAnnotations(outputBuffer, prefix);
-      }
-      _writeClassEpilogue(outputBuffer);
+      var prefix = 'import_${index++}';
+      var url = resolver.getAbsoluteImportUri(lib);
+      outputBuffer.write('import \'$url\' as $prefix;\n');
+      importPrefixes[lib] = '$prefix.';
+    }
 
-      _writeMemberPreamble(outputBuffer);
-      index = 0;
-      for (var lib in libs) {
-        var prefix = 'import_${index++}';
-        lib.writeMemberAnnotations(outputBuffer, prefix);
-      }
-      _writeMemberEpilogue(outputBuffer);
+    _writePreamble(outputBuffer);
 
-      var outputId =
+    _writeClassPreamble(outputBuffer);
+    for (var type in annotatedTypes) {
+      type.writeClassAnnotations(outputBuffer, importPrefixes);
+    }
+    _writeClassEpilogue(outputBuffer);
+
+    _writeMemberPreamble(outputBuffer);
+    for (var type in annotatedTypes) {
+      type.writeMemberAnnotations(outputBuffer, importPrefixes);
+    }
+    _writeMemberEpilogue(outputBuffer);
+
+    var outputId =
           new AssetId(asset.id.package, 'lib/$generatedMetadataFilename');
       transform.addOutput(
             new Asset.fromString(outputId, outputBuffer.toString()));
-    });
+
+    return new Future.value(null);
   }
 
   /**
@@ -94,9 +95,6 @@ void _writeHeader(AssetId id, StringSink sink) {
   var libPath = path.withoutExtension(id.path).replaceAll('/', '.');
   sink.write('''
 library ${id.package}.$libPath.generated_metadata;
-
-import 'dart:core';
-import 'package:angular/angular.dart';
 
 ''');
 }

@@ -1,6 +1,7 @@
 library angular_transformers.expression_generator;
 
 import 'dart:async';
+import 'package:analyzer/src/generated/element.dart';
 import 'package:angular/tools/source_crawler.dart';
 import 'package:angular/tools/html_extractor.dart';
 import 'package:angular/tools/source_metadata_extractor.dart';
@@ -12,7 +13,6 @@ import 'package:barback/barback.dart';
 import 'package:di/di.dart';
 import 'package:di/dynamic_injector.dart';
 import 'package:path/path.dart' as path;
-import 'package:source_maps/refactor.dart';
 
 import 'common.dart';
 import 'resolver.dart';
@@ -54,7 +54,7 @@ class ExpressionGenerator extends Transformer {
     _writeStaticExpressionHeader(asset.id, outputBuffer);
 
     var sourceMetadataExtractor = new SourceMetadataExtractor();
-    List<DirectiveInfo> directives =
+    var directives =
         sourceMetadataExtractor.gatherDirectiveInfo(null,
         new _LibrarySourceCrawler(resolver.libraries));
 

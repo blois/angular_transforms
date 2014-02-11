@@ -61,7 +61,7 @@ class BarbackOptions {
         packageHome = (packageHome != null
           ? packageHome : Directory.current.path),
         packageDirs = (packageDirs != null
-          ? packageDirs : readPackageDirsFromPub(this.packageHome));
+          ? packageDirs : readPackageDirsFromPub(packageHome));
 
 }
 
