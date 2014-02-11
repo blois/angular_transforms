@@ -141,5 +141,3 @@ class _FunctionTransformer extends GeneralizingASTVisitor {
   visitImportDirective(ImportDirective d) {}
 }
 
-bool canImportAsset(AssetId id) => id.path.startsWith('lib/');
-

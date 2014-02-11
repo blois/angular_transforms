@@ -11,7 +11,7 @@ import 'metadata_extractor.dart';
 import 'resolver.dart';
 import 'resolver_transformer.dart';
 
-const String generatedMetadataFilename = 'generated_metadata.dart';
+const String _generatedMetadataFilename = 'generated_metadata.dart';
 
 class MetadataGenerator extends Transformer {
   final TransformOptions options;
@@ -70,7 +70,7 @@ class MetadataGenerator extends Transformer {
     _writeMemberEpilogue(outputBuffer);
 
     var outputId =
-          new AssetId(asset.id.package, 'lib/$generatedMetadataFilename');
+          new AssetId(asset.id.package, 'lib/$_generatedMetadataFilename');
       transform.addOutput(
             new Asset.fromString(outputId, outputBuffer.toString()));
 
@@ -87,7 +87,7 @@ class MetadataGenerator extends Transformer {
         identifier: 'angular_transformers.auto_modules.defaultMetadataModule',
         replacement: 'metadataModule',
         importPrefix: 'generated_metadata',
-        generatedFilename: generatedMetadataFilename);
+        generatedFilename: _generatedMetadataFilename);
   }
 }
 

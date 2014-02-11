@@ -2,9 +2,9 @@ library angular_transformers.test.metadata_generator;
 
 import 'dart:async';
 import 'package:angular_transformers/options.dart';
-import 'package:angular_transformers/transformer.dart';
 import 'package:angular_transformers/src/metadata_generator.dart';
 import 'package:angular_transformers/src/resolver_transformer.dart';
+import 'package:barback/barback.dart';
 import 'jasmine_syntax.dart';
 import 'common.dart';
 
@@ -325,15 +325,6 @@ final Map<Type, Map<String, AttrFieldAnnotation>> _memberAnnotations = {''';
 const String FOOTER = '''
 };''';
 
-const Map EMPTY_METADATA = const {
-  'a|lib/generated_metadata.dart': '''
-$HEADER
-$BOILER_PLATE
-$MEMBER_PREAMBLE
-$FOOTER
-'''
-};
-
 
 const String PACKAGE_ANGULAR = '''
 library angular.core;
@@ -363,8 +354,3 @@ class NgOneWayOneTime {
 
 class TextChangeListener {}
 ''';
-
-// @NgDirective(
-//     selector: 'option',
-//     publishTypes: const [TextChangeListener],
-//     map: const {'ng-value': '&ngValue'})

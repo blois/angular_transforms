@@ -18,7 +18,7 @@ import 'common.dart';
 import 'resolver.dart';
 import 'resolver_transformer.dart';
 
-const String generatedExpressionFilename = 'generated_static_expressions.dart';
+const String _generatedExpressionFilename = 'generated_static_expressions.dart';
 
 /**
  * Transformer which gathers all expressions from the HTML source files and
@@ -73,7 +73,7 @@ class ExpressionGenerator extends Transformer {
       injector.get(ParserGenerator).generateParser(htmlExtractor.expressions);
 
       var outputId =
-          new AssetId(asset.id.package, 'lib/$generatedExpressionFilename');
+          new AssetId(asset.id.package, 'lib/$_generatedExpressionFilename');
       transform.addOutput(
             new Asset.fromString(outputId, outputBuffer.toString()));
 
@@ -91,7 +91,7 @@ class ExpressionGenerator extends Transformer {
         identifier: 'angular_transformers.auto_modules.defaultExpressionModule',
         replacement: 'expressionModule',
         importPrefix: 'generated_static_expressions',
-        generatedFilename: generatedExpressionFilename);
+        generatedFilename: _generatedExpressionFilename);
   }
 
   /**
