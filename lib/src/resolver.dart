@@ -200,14 +200,24 @@ class Resolver {
   }
 
   /**
-   * Gets an absolute URI appropriate for importing the specified library.
+   * Gets an URI appropriate for importing the specified library.
+   *
+   * Returns null if the library cannot be imported via an absolute URI or
+   * from [from] (if provided).
    */
-  Uri getAbsoluteImportUri(LibraryElement lib) {
+  Uri getImportUri(LibraryElement lib, {AssetId from}) {
     var source = lib.source;
     if (source is _AssetBasedSource) {
       var id = source.assetId;
-      // Cannot do absolute imports of non lib-based assets.
-      if (!id.path.startsWith('lib/')) return null;
+
+      if (!id.path.startsWith('lib/')) {
+        // Cannot do absolute imports of non lib-based assets.
+        if (from == null) return null;
+
+        if (id.package != from.package) return null;
+        return new Uri(
+            path:  path.relative(id.path, from: path.dirname(from.path)));
+      }
 
       return Uri.parse('package:${id.package}/${id.path.substring(4)}');
     } else if (source is _DartSourceProxy) {

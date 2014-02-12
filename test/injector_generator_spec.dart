@@ -470,6 +470,27 @@ main() {
             ]);
       });
 
+      it('does not generate dart:core imports', () {
+        return generates(phases,
+            inputs: {
+              'a|web/main.dart': 'import "package:a/a.dart";',
+              'a|lib/a.dart': '''
+                  import 'package:inject/inject.dart';
+
+                  class Engine {
+                    @inject
+                    Engine(int i);
+                  }
+                  '''
+            },
+            imports: [
+              "import 'package:a/a.dart' as import_0;",
+            ],
+            generators: [
+              'import_0.Engine: (f) => new import_0.Engine(f(int)),',
+            ]);
+      });
+
       it('warns on private types', () {
         return generates(phases,
             inputs: {

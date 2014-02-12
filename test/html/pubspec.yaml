@@ -1,0 +1,13 @@
+name: html_test
+description: Library resources for testing
+dependencies:
+  angular_transformers:
+    path: ../..
+dev_dependencies:
+  unittest: any
+  browser: any
+transformers:
+- angular_transformers:
+    dart_entry: web/main.dart
+    injectable_annotations:
+      - di_test.injectables.Injectable

@@ -50,7 +50,7 @@ class MetadataGenerator extends Transformer {
       }
 
       var prefix = 'import_${index++}';
-      var url = resolver.getAbsoluteImportUri(lib);
+      var url = resolver.getImportUri(lib);
       outputBuffer.write('import \'$url\' as $prefix;\n');
       importPrefixes[lib] = '$prefix.';
     }
@@ -59,13 +59,15 @@ class MetadataGenerator extends Transformer {
 
     _writeClassPreamble(outputBuffer);
     for (var type in annotatedTypes) {
-      type.writeClassAnnotations(outputBuffer, importPrefixes);
+      type.writeClassAnnotations(
+          outputBuffer, transform.logger, resolver, importPrefixes);
     }
     _writeClassEpilogue(outputBuffer);
 
     _writeMemberPreamble(outputBuffer);
     for (var type in annotatedTypes) {
-      type.writeMemberAnnotations(outputBuffer, importPrefixes);
+      type.writeMemberAnnotations(
+          outputBuffer, transform.logger, resolver, importPrefixes);
     }
     _writeMemberEpilogue(outputBuffer);
 
@@ -73,6 +75,8 @@ class MetadataGenerator extends Transformer {
           new AssetId(asset.id.package, 'lib/$_generatedMetadataFilename');
       transform.addOutput(
             new Asset.fromString(outputId, outputBuffer.toString()));
+
+    _transformAsset(transform, resolver);
 
     return new Future.value(null);
   }

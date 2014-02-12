@@ -32,8 +32,8 @@ class AnnotatedType {
     return libs;
   }
 
-  void writeClassAnnotations(StringBuffer sink,
-      Map<LibraryElement, String> prefixes) {
+  void writeClassAnnotations(StringBuffer sink, TransformLogger logger,
+      Resolver resolver, Map<LibraryElement, String> prefixes) {
     sink.write('  ${prefixes[type.library]}${type.name}: [\n');
     var writer = new _AnnotationWriter(sink, prefixes);
     for (var annotation in annotations) {
@@ -42,13 +42,16 @@ class AnnotatedType {
         sink.write(',\n');
       } else {
         sink.write('null,\n');
+        logger.warning('Unable to serialize annotation $annotation.',
+            asset: resolver.getSourceAssetId(annotation.parent.element),
+            span: resolver.getSourceSpan(annotation.parent.element));
       }
     }
     sink.write('  ],\n');
   }
 
-  void writeMemberAnnotations(StringBuffer sink,
-      Map<LibraryElement, String> prefixes) {
+  void writeMemberAnnotations(StringBuffer sink, TransformLogger logger,
+      Resolver resolver, Map<LibraryElement, String> prefixes) {
     if (members.isEmpty) return;
 
     sink.write('  ${prefixes[type.library]}${type.name}: {\n');
@@ -60,6 +63,9 @@ class AnnotatedType {
         sink.write(',\n');
       } else {
         sink.write('null,\n');
+        logger.warning('Unable to serialize annotation $annotation.',
+            asset: resolver.getSourceAssetId(annotation.parent.element),
+            span: resolver.getSourceSpan(annotation.parent.element));
       }
     });
     sink.write('  },\n');
@@ -141,8 +147,9 @@ class _AnnotationWriter {
   /** Writes an expression. */
   bool _writeExpression(Expression expression) {
     if (expression is StringLiteral) {
-      var str = expression.stringValue;
-      str = str.replaceAll('\'', '\\\'');
+      var str = expression.stringValue
+          .replaceAll(r'\', r'\\')
+          .replaceAll('\'', '\\\'');
       sink.write('\'$str\'');
       return true;
     }
@@ -171,6 +178,22 @@ class _AnnotationWriter {
         sink.write('${prefixes[element.library]}${element.name}');
         return true;
       }
+    }
+    if (expression is BooleanLiteral) {
+      sink.write(expression.value);
+      return true;
+    }
+    if (expression is DoubleLiteral) {
+      sink.write(expression.value);
+      return true;
+    }
+    if (expression is IntegerLiteral) {
+      sink.write(expression.value);
+      return true;
+    }
+    if (expression is NullLiteral) {
+      sink.write('null');
+      return true;
     }
     return false;
   }
@@ -202,7 +225,7 @@ class AnnotationExtractor {
   }
 
   AnnotatedType extractAnnotations(ClassElement cls) {
-    if (resolver.getAbsoluteImportUri(cls.library) == null) {
+    if (resolver.getImportUri(cls.library) == null) {
       logger.warning('Dropping annotations for ${cls.name} because the '
           'containing file cannot be imported (must be in a lib folder).',
           asset: resolver.getSourceAssetId(cls),

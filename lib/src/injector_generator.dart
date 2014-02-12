@@ -145,7 +145,8 @@ class InjectorGenerator extends Transformer {
     for (var injectedName in options.injectedTypes) {
       var injectedClass = _resolver.getType(injectedName);
       if (injectedClass == null) {
-        _logger.warning('Unable to resolve injected_type $injectedClass');
+        _logger.warning('Unable to resolve injected type name $injectedName');
+        continue;
       }
       var ctor = _findInjectedConstructor(injectedClass, true);
       if (ctor != null) {
@@ -230,7 +231,7 @@ class InjectorGenerator extends Transformer {
           span: _resolver.getSourceSpan(cls));
       return false;
     }
-    if (_resolver.getAbsoluteImportUri(cls.library) == null) {
+    if (_resolver.getImportUri(cls.library) == null) {
       _logger.warning('${cls.name} cannot be injected because '
           'the containing file cannot be imported.',
           asset: _resolver.getSourceAssetId(ctor),
@@ -278,35 +279,35 @@ class InjectorGenerator extends Transformer {
 
     _writeStaticInjectorHeader(_resolver.entryPoint, outputBuffer);
 
-    var importPrefixes = <Uri, String>{};
-    var typePrefixes = <ClassElement, String>{};
+    var prefixes = <LibraryElement, String>{};
 
     var ctorTypes = constructors.map((ctor) => ctor.enclosingElement).toSet();
     var paramTypes = constructors.expand((ctor) => ctor.parameters)
         .map((param) => param.type.element).toSet();
 
-    var types = new Set.from(ctorTypes)..addAll(paramTypes);
+    var libs = ctorTypes..addAll(paramTypes);
+    libs = libs.map((type) => type.library).toSet();
 
-    for (var type in types) {
-      var importUrl = _resolver.getAbsoluteImportUri(type.library);
-      var prefix = importPrefixes.putIfAbsent(importUrl,
-          () => 'import_${importPrefixes.keys.length}');
-      typePrefixes[type] = prefix;
+    for (var lib in libs) {
+      if (lib.isDartCore) {
+        prefixes[lib] = '';
+      } else {
+        var prefix = 'import_${prefixes.length}';
+        var uri = _resolver.getImportUri(lib);
+        outputBuffer.write('import \'$uri\' as $prefix;\n');
+        prefixes[lib] = '$prefix.';
+      }
     }
-
-    importPrefixes.forEach((uri, prefix) {
-      outputBuffer.write('import \'$uri\' as $prefix;\n');
-    });
 
     _writePreamble(outputBuffer);
 
     for (var ctor in constructors) {
       var type = ctor.enclosingElement;
-      var typeName = '${typePrefixes[type]}.${type.name}';
+      var typeName = '${prefixes[type.library]}${type.name}';
       outputBuffer.write('  $typeName: (f) => new $typeName(');
       var params = ctor.parameters.map((param) {
         var type = param.type.element;
-        var typeName = '${typePrefixes[type]}.${type.name}';
+        var typeName = '${prefixes[type.library]}${type.name}';
         return 'f($typeName)';
       });
       outputBuffer.write('${params.join(', ')}),\n');

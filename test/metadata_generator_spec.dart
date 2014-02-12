@@ -170,6 +170,35 @@ main() {
           });
     });
 
+    it('should extract primitive literals', () {
+      return generates(phases,
+          inputs: {
+            'a|web/main.dart': '''import 'package:a/a.dart'; ''',
+            'angular|lib/angular.dart': PACKAGE_ANGULAR,
+            'a|lib/a.dart': '''
+                import 'package:angular/angular.dart';
+
+                @NgOneWay(true)
+                @NgOneWay(1.0)
+                @NgOneWay(1)
+                @NgOneWay(null)
+                class Engine {}
+                '''
+          },
+          imports: [
+            'import \'package:a/a.dart\' as import_0;',
+            'import \'package:angular/angular.dart\' as import_1;',
+          ],
+          classes: {
+            'import_0.Engine': [
+              'const import_1.NgOneWay(true)',
+              'const import_1.NgOneWay(1.0)',
+              'const import_1.NgOneWay(1)',
+              'const import_1.NgOneWay(null)',
+            ]
+          });
+    });
+
     it('should skip and warn on unserializable annotations', () {
       return generates(phases,
           inputs: {
@@ -196,7 +225,12 @@ main() {
             'import_0.Car': [
               'null',
             ]
-          });
+          },
+          messages: [
+            'warning: Unable to serialize annotation @Foo. (lib/a.dart 2 16)',
+            'warning: Unable to serialize annotation '
+            '@NgDirective(publishTypes: const [Foo]). (lib/a.dart 5 16)',
+          ]);
     });
 
     it('should extract types across libs', () {
@@ -242,6 +276,30 @@ main() {
                   }
                 }
                 ''',
+          });
+    });
+
+    it('properly escapes strings', () {
+      return generates(phases,
+          inputs: {
+            'a|web/main.dart': '''import 'package:a/a.dart'; ''',
+            'angular|lib/angular.dart': PACKAGE_ANGULAR,
+            'a|lib/a.dart': r'''
+                import 'package:angular/angular.dart';
+
+                @NgOneWay('foo\' \\')
+                class Engine {
+                }
+                ''',
+          },
+          imports: [
+            'import \'package:a/a.dart\' as import_0;',
+            'import \'package:angular/angular.dart\' as import_1;',
+          ],
+          classes: {
+            'import_0.Engine': [
+              r'''const import_1.NgOneWay('foo\' \\')''',
+            ]
           });
     });
   });

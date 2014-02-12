@@ -190,28 +190,33 @@ import 'package:a/b.dart';
       return transform(phases,
           inputs: {
             'a|web/main.dart': '''
-import 'dart:core';
-import 'package:a/a.dart';
-import 'package:a/b.dart';
-class Foo {}
-''',
+              import 'dart:core';
+              import 'package:a/a.dart';
+              import 'package:a/b.dart';
+              import 'sub_dir/d.dart';
+              class Foo {}
+              ''',
             'a|lib/a.dart': 'library a.a;\n import "package:a/c.dart";',
             'a|lib/b.dart': 'library a.b;\n import "c.dart";',
             'a|lib/c.dart': '''
-library a.c;
-class Bar {}
-'''
+                library a.c;
+                class Bar {}
+                ''',
+            'a|web/sub_dir/d.dart': '''
+                library a.web.sub_dir.d;
+                class Baz{}
+                ''',
           }).then((_) {
             var resolver = transformer.getResolver(entryPoint);
 
             var a = resolver.getLibrary('a.a');
             expect(a, isNotNull);
-            expect(resolver.getAbsoluteImportUri(a).toString(),
+            expect(resolver.getImportUri(a).toString(),
                 'package:a/a.dart');
 
             var main = resolver.getLibrary('');
             expect(main, isNotNull);
-            expect(resolver.getAbsoluteImportUri(main), isNull);
+            expect(resolver.getImportUri(main), isNull);
 
             var fooType = resolver.getType('Foo');
             expect(fooType, isNotNull);
@@ -219,13 +224,20 @@ class Bar {}
 
             var barType = resolver.getType('a.c.Bar');
             expect(barType, isNotNull);
-            expect(resolver.getAbsoluteImportUri(barType.library).toString(),
+            expect(resolver.getImportUri(barType.library).toString(),
                 'package:a/c.dart');
             expect(resolver.getSourceAssetId(barType),
                 new AssetId('a', 'lib/c.dart'));
 
+            var bazType = resolver.getType('a.web.sub_dir.d.Baz');
+            expect(bazType, isNotNull);
+            expect(resolver.getImportUri(bazType.library), isNull);
+            expect(resolver
+                .getImportUri(bazType.library, from: entryPoint).toString(),
+                'sub_dir/d.dart');
+
             var hashMap = resolver.getType('dart.collection.HashMap');
-            expect(resolver.getAbsoluteImportUri(hashMap.library).toString(),
+            expect(resolver.getImportUri(hashMap.library).toString(),
                 'dart:collection');
 
           });
@@ -239,7 +251,7 @@ class Bar {}
           }).then((_) {
             var resolver = transformer.getResolver(entryPoint);
             var engine = resolver.getType('Engine');
-            var uri = resolver.getAbsoluteImportUri(engine.library);
+            var uri = resolver.getImportUri(engine.library);
             expect(uri.toString(), 'package:a/b.dart');
           }).then((_) {
             return transform(phases,
@@ -250,7 +262,7 @@ class Bar {}
           }).then((_) {
             var resolver = transformer.getResolver(entryPoint);
             var engine = resolver.getType('Engine');
-            var uri = resolver.getAbsoluteImportUri(engine.library);
+            var uri = resolver.getImportUri(engine.library);
             expect(uri.toString(), 'package:a/a.dart');
           });
     });
