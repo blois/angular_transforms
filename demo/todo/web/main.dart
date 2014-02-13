@@ -44,5 +44,5 @@ main() {
 
   ngBootstrap(
       module:module,
-      injectorFactory: (modules) => defaultAutoInjector(modules: modules));
+      injectorFactory: (modules) => defaultInjector(modules: modules));
 }

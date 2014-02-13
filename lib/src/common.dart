@@ -7,16 +7,14 @@ import 'package:barback/barback.dart';
 import 'resolver.dart';
 
 
-/**
- * Transforms all simple identifiers of [identifier] to be [replacement] in the
- * entry point of the application.
- *
- * This will resolve the full name of [identifier] and warn if it cannot be
- * resolved.
- *
- * If the identifier is found and modifications are made then an import will be
- * added to the file indicated by [generatedFilename].
- */
+/// Transforms all simple identifiers of [identifier] to be [replacement] in the
+/// entry point of the application.
+///
+/// This will resolve the full name of [identifier] and warn if it cannot be
+/// resolved.
+///
+/// If the identifier is found and modifications are made then an import will be
+/// added to the file indicated by [generatedFilename].
 void transformIdentifiers(Transform transform, Resolver resolver,
     {String identifier, String replacement, String generatedFilename,
     String importPrefix}) {
@@ -31,7 +29,6 @@ void transformIdentifiers(Transform transform, Resolver resolver,
   }
 
   var lib = resolver.entryLibrary;
-  var id = transform.primaryInput.id;
   var transaction = resolver.createTextEditTransaction(lib);
   var unit = lib.definingCompilationUnit.node;
 
@@ -40,8 +37,16 @@ void transformIdentifiers(Transform transform, Resolver resolver,
 
   if (transaction.hasEdits) {
     addImport(transaction, unit,
-      'package:${id.package}/$generatedFilename', importPrefix);
+        'package:${transform.primaryInput.id.package}/$generatedFilename',
+        importPrefix);
+  }
+  commitTransaction(transaction, transform);
+}
 
+void commitTransaction(TextEditTransaction transaction, Transform transform) {
+  var id = transform.primaryInput.id;
+
+  if (transaction.hasEdits) {
     var printer = transaction.commit();
     var url = id.path.startsWith('lib/')
         ? 'package:${id.package}/${id.path.substring(4)}' : id.path;
@@ -53,9 +58,7 @@ void transformIdentifiers(Transform transform, Resolver resolver,
   }
 }
 
-/**
- * Injects an import into the list of imports in the file.
- */
+/// Injects an import into the list of imports in the file.
 void addImport(TextEditTransaction transaction, CompilationUnit unit,
     String uri, String alias) {
   var libDirective;
@@ -100,16 +103,13 @@ class _IdentifierTransformer extends GeneralizingASTVisitor {
     super.visitPrefixedIdentifier(node);
   }
 
-  // Skip over the contents of imports.
-  visitImportDirective(ImportDirective d) {}
+  // Skip the contents of imports/exports/parts
+  visitUriBasedDirective(ImportDirective d) {}
 }
 
-/**
- * Changes all references from original to replacement, maintaining the method
- * parameters of the original invocation.
- *
- * [original] must be a reference to a static function.
- */
+/// Changes all references from original to replacement, maintaining the method
+/// parameters of the original invocation.
+/// [original] must be a reference to a static function.
 void transformMethodInvocations(TextEditTransaction transaction,
     CompilationUnit unit, FunctionElement original, String replacement) {
   unit.accept(new _FunctionTransformer(transaction, original, replacement));
@@ -137,7 +137,7 @@ class _FunctionTransformer extends GeneralizingASTVisitor {
     super.visitMethodInvocation(m);
   }
 
-  // Skip over the contents of imports.
-  visitImportDirective(ImportDirective d) {}
+  // Skip the contents of imports/exports/parts
+  visitUriBasedDirective(ImportDirective d) {}
 }
 

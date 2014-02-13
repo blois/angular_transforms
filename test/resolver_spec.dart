@@ -1,8 +1,6 @@
 library angular_transformers.test.resolver_spec;
 
-import 'package:angular_transformers/options.dart';
 import 'package:angular_transformers/src/resolver_transformer.dart';
-import 'package:angular_transformers/transformer.dart';
 import 'package:barback/barback.dart';
 import 'common.dart';
 import 'jasmine_syntax.dart';

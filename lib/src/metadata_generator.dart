@@ -100,6 +100,9 @@ void _writeHeader(AssetId id, StringSink sink) {
   sink.write('''
 library ${id.package}.$libPath.generated_metadata;
 
+import 'package:angular/angular.dart' show AttrFieldAnnotation, FieldMetadataExtractor, MetadataExtractor;
+import 'package:di/di.dart' show Module;
+
 ''');
 }
 

@@ -132,7 +132,7 @@ main() {
             'a|lib/a.dart': '''
                 import 'package:angular/angular.dart';
 
-                @NgDirective(map: const {'ng-value': '&ngValue'})
+                @NgDirective(map: const {'ng-value': '&ngValue', 'key': 'value'})
                 class Engine {}
                 '''
           },
@@ -142,7 +142,7 @@ main() {
           ],
           classes: {
             'import_0.Engine': [
-              'const import_1.NgDirective(map: const {\'ng-value\': \'&ngValue\'})',
+              'const import_1.NgDirective(map: const {\'ng-value\': \'&ngValue\', \'key\': \'value\'})',
             ]
           });
     });
@@ -302,6 +302,33 @@ main() {
             ]
           });
     });
+
+    it('should reference static and global properties', () {
+      return generates(phases,
+          inputs: {
+            'a|web/main.dart': '''import 'package:a/a.dart'; ''',
+            'angular|lib/angular.dart': PACKAGE_ANGULAR,
+            'a|lib/a.dart': '''
+                import 'package:angular/angular.dart';
+
+                @NgDirective(visibility: NgDirective.CHILDREN_VISIBILITY)
+                @NgDirective(visibility: CONST_VALUE)
+                class Engine {}
+
+                const int CONST_VALUE = 2;
+                ''',
+          },
+          imports: [
+            'import \'package:a/a.dart\' as import_0;',
+            'import \'package:angular/angular.dart\' as import_1;',
+          ],
+          classes: {
+            'import_0.Engine': [
+              '''const import_1.NgDirective(visibility: import_1.NgDirective.CHILDREN_VISIBILITY)''',
+              '''const import_1.NgDirective(visibility: import_0.CONST_VALUE)''',
+            ]
+          });
+    });
   });
 }
 
@@ -346,6 +373,9 @@ Future generates(List<List<Transformer>> phases,
 
 const String HEADER = '''
 library a.web.main.generated_metadata;
+
+import 'package:angular/angular.dart' show AttrFieldAnnotation, FieldMetadataExtractor, MetadataExtractor;
+import 'package:di/di.dart' show Module;
 ''';
 
 const String BOILER_PLATE = '''
@@ -388,7 +418,9 @@ const String PACKAGE_ANGULAR = '''
 library angular.core;
 
 class NgDirective {
-  const NgDirective({selector. publishTypes, map});
+  const NgDirective({selector, publishTypes, map, visibility});
+
+  static const int CHILDREN_VISIBILITY = 1;
 }
 
 class NgOneWay {

@@ -133,12 +133,16 @@ class _AnnotationWriter {
   /** Writes the arguments for a type constructor. */
   bool _writeArguments(Annotation annotation) {
     var args = annotation.arguments;
+    var index = 0;
     for (var arg in args.arguments) {
       if (arg is NamedExpression) {
         sink.write('${arg.name.label.name}: ');
         if (!_writeExpression(arg.expression)) return false;
       } else {
         if (!_writeExpression(arg)) return false;
+      }
+      if (++index < args.arguments.length) {
+        sink.write(', ');
       }
     }
     return true;
@@ -164,20 +168,39 @@ class _AnnotationWriter {
     }
     if (expression is MapLiteral) {
       sink.write('const {');
+      var index = 0;
       for (var entry in expression.entries) {
         if (!_writeExpression(entry.key)) return false;
         sink.write(': ');
         if (!_writeExpression(entry.value)) return false;
+        if (++index < expression.entries.length) {
+          sink.write(', ');
+        }
       }
       sink.write('}');
       return true;
     }
-    if (expression is SimpleIdentifier) {
+    if (expression is Identifier) {
       var element = expression.bestElement;
+      if (element == null || !element.isPublic) return false;
+
       if (element is ClassElement) {
         sink.write('${prefixes[element.library]}${element.name}');
         return true;
       }
+      if (element is PropertyAccessorElement) {
+        var variable = element.variable;
+        if (variable is FieldElement) {
+          var cls = variable.enclosingElement;
+          sink.write('${prefixes[cls.library]}${cls.name}.${variable.name}');
+          return true;
+        } else if (variable is TopLevelVariableElement) {
+          sink.write('${prefixes[variable.library]}${variable.name}');
+          return true;
+        }
+        print('variable ${variable.runtimeType} $variable');
+      }
+      print('element ${element.runtimeType} $element');
     }
     if (expression is BooleanLiteral) {
       sink.write(expression.value);
@@ -195,6 +218,7 @@ class _AnnotationWriter {
       sink.write('null');
       return true;
     }
+    print('expression ${expression.runtimeType} $expression');
     return false;
   }
 }

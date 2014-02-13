@@ -1,8 +1,6 @@
 library angular_transformers.resolver_transformer;
 
 import 'dart:async';
-import 'package:analyzer/src/generated/element.dart' show LibraryElement;
-import 'package:angular_transformers/options.dart';
 import 'package:barback/barback.dart';
 
 import 'resolver.dart';
