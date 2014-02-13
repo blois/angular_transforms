@@ -38,17 +38,14 @@ class ExpressionGenerator extends Transformer {
       new Future.value(options.isDartEntry(input.id));
 
   Future apply(Transform transform) {
-    return _generateExpressions(transform).then((_) {
-      // Workaround for dartbug.com/16120- do not send data across the isolate
-      // boundaries.
-      return null;
+    var resolver = this.resolvers.getResolver(transform.primaryInput.id);
+    return resolver.updateSources(transform).then((_) {
+      return _generateExpressions(transform, resolver);
     });
   }
 
-  Future<String> _generateExpressions(Transform transform) {
+  Future<String> _generateExpressions(Transform transform, Resolver resolver) {
     var asset = transform.primaryInput;
-    var resolver = this.resolvers.getResolver(asset.id);
-
     var outputBuffer = new StringBuffer();
 
     _writeStaticExpressionHeader(asset.id, outputBuffer);

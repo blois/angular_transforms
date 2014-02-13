@@ -33,20 +33,21 @@ class InjectorGenerator extends Transformer {
     _logger = transform.logger;
     _resolver = this.resolvers.getResolver(transform.primaryInput.id);
 
-    _resolveInjectableMetadata();
-    var constructors = _gatherConstructors();
+    return _resolver.updateSources(transform).then((_) {
+      _resolveInjectableMetadata();
+      var constructors = _gatherConstructors();
 
-    var injectLibContents = _generateInjectLibrary(constructors);
+      var injectLibContents = _generateInjectLibrary(constructors);
 
-    var outputId = new AssetId(transform.primaryInput.id.package,
-        'lib/$_generateInjector');
-    transform.addOutput(new Asset.fromString(outputId, injectLibContents));
+      var outputId = new AssetId(transform.primaryInput.id.package,
+          'lib/$_generateInjector');
+      transform.addOutput(new Asset.fromString(outputId, injectLibContents));
 
-    _transformAsset(transform);
+      _transformAsset(transform);
 
-    _logger = null;
-    _resolver = null;
-    return new Future.value(null);
+      _logger = null;
+      _resolver = null;
+    });
   }
 
   /** Default list of injectable consts */
@@ -70,12 +71,12 @@ class InjectorGenerator extends Transformer {
       var variable = _resolver.getLibraryVariable(metaName);
       if (variable != null) {
         _injectableMetaConsts.add(variable);
-        break;
+        continue;
       }
       var cls = _resolver.getType(metaName);
       if (cls != null && cls.unnamedConstructor != null) {
         _injectableMetaConstructors.add(cls.unnamedConstructor);
-        break;
+        continue;
       }
       _logger.warning('Unable to resolve injectable annotation $metaName');
     }

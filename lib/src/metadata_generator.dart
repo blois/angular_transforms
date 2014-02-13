@@ -25,60 +25,61 @@ class MetadataGenerator extends Transformer {
   Future apply(Transform transform) {
     var asset = transform.primaryInput;
     var resolver = this.resolvers.getResolver(asset.id);
+    return resolver.updateSources(transform).then((_) {
+      var extractor = new AnnotationExtractor(transform.logger, resolver);
 
-    var extractor = new AnnotationExtractor(transform.logger, resolver);
+      var outputBuffer = new StringBuffer();
+      _writeHeader(asset.id, outputBuffer);
 
-    var outputBuffer = new StringBuffer();
-    _writeHeader(asset.id, outputBuffer);
+      var annotatedTypes = resolver.libraries
+          .where((lib) => !lib.isInSdk)
+          .expand((lib) => lib.units)
+          .expand((unit) => unit.types)
+          .map(extractor.extractAnnotations)
+          .where((annotations) => annotations != null).toList();
 
-    var annotatedTypes = resolver.libraries
-        .where((lib) => !lib.isInSdk)
-        .expand((lib) => lib.units)
-        .expand((unit) => unit.types)
-        .map(extractor.extractAnnotations)
-        .where((annotations) => annotations != null).toList();
+      var libs = annotatedTypes.expand((type) => type.referencedLibraries)
+          .toSet();
 
-    var libs = annotatedTypes.expand((type) => type.referencedLibraries)
-        .toSet();
+      var importPrefixes = <LibraryElement, String>{};
+      var index = 0;
+      for (var lib in libs) {
+        if (lib.isDartCore) {
+          importPrefixes[lib] = '';
+          continue;
+        }
 
-    var importPrefixes = <LibraryElement, String>{};
-    var index = 0;
-    for (var lib in libs) {
-      if (lib.isDartCore) {
-        importPrefixes[lib] = '';
-        continue;
+        var prefix = 'import_${index++}';
+        var url = resolver.getImportUri(lib);
+        outputBuffer.write('import \'$url\' as $prefix;\n');
+        importPrefixes[lib] = '$prefix.';
       }
 
-      var prefix = 'import_${index++}';
-      var url = resolver.getImportUri(lib);
-      outputBuffer.write('import \'$url\' as $prefix;\n');
-      importPrefixes[lib] = '$prefix.';
-    }
+      _writePreamble(outputBuffer);
 
-    _writePreamble(outputBuffer);
+      _writeClassPreamble(outputBuffer);
+      for (var type in annotatedTypes) {
+        type.writeClassAnnotations(
+            outputBuffer, transform.logger, resolver, importPrefixes);
+      }
+      _writeClassEpilogue(outputBuffer);
 
-    _writeClassPreamble(outputBuffer);
-    for (var type in annotatedTypes) {
-      type.writeClassAnnotations(
-          outputBuffer, transform.logger, resolver, importPrefixes);
-    }
-    _writeClassEpilogue(outputBuffer);
+      _writeMemberPreamble(outputBuffer);
+      for (var type in annotatedTypes) {
+        type.writeMemberAnnotations(
+            outputBuffer, transform.logger, resolver, importPrefixes);
+      }
+      _writeMemberEpilogue(outputBuffer);
 
-    _writeMemberPreamble(outputBuffer);
-    for (var type in annotatedTypes) {
-      type.writeMemberAnnotations(
-          outputBuffer, transform.logger, resolver, importPrefixes);
-    }
-    _writeMemberEpilogue(outputBuffer);
+      var outputId =
+            new AssetId(asset.id.package, 'lib/$_generatedMetadataFilename');
+        transform.addOutput(
+              new Asset.fromString(outputId, outputBuffer.toString()));
 
-    var outputId =
-          new AssetId(asset.id.package, 'lib/$_generatedMetadataFilename');
-      transform.addOutput(
-            new Asset.fromString(outputId, outputBuffer.toString()));
+      _transformAsset(transform, resolver);
 
-    _transformAsset(transform, resolver);
-
-    return new Future.value(null);
+      return null;
+    });
   }
 
   /**
