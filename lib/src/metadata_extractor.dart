@@ -7,7 +7,7 @@ import 'resolver.dart';
 
 class AnnotatedType {
   final ClassElement type;
-  List<Annotation> annotations;
+  Iterable<Annotation> annotations;
 
   final Map<String, Annotation> members = <String, Annotation>{};
 
@@ -118,7 +118,12 @@ class _AnnotationWriter {
     var element = annotation.element;
     if (element is ConstructorElement) {
       sink.write('const ${prefixes[element.library]}'
-          '${element.enclosingElement.name}(');
+          '${element.enclosingElement.name}');
+      // Named constructors
+      if (!element.name.isEmpty) {
+        sink.write('.${element.name}');
+      }
+      sink.write('(');
       if (!_writeArguments(annotation)) return false;
       sink.write(')');
       return true;
@@ -235,7 +240,8 @@ class AnnotationExtractor {
     'angular.core.NgCallback'
   ];
 
-  final List _annotationElements = [];
+  /// Resolved annotations that this will pick up for members.
+  final List<Element> _annotationElements = <Element>[];
 
   AnnotationExtractor(this.logger, this.resolver) {
     for (var annotation in _angularAnnotationNames) {
@@ -263,7 +269,25 @@ class AnnotationExtractor {
     if (!visitor.hasAnnotations) return null;
 
     var type = new AnnotatedType(cls);
-    type.annotations = visitor.classAnnotations;
+    type.annotations = visitor.classAnnotations
+        .where((annotation) {
+          var element = annotation.element;
+          if (element != null && !element.isPublic) {
+            logger.warning('Annotation $annotation is not public.',
+                asset: resolver.getSourceAssetId(annotation.parent.element),
+                span: resolver.getSourceSpan(annotation.parent.element));
+            return false;
+          }
+          if (element is ConstructorElement &&
+              !element.enclosingElement.isPublic) {
+            logger.warning('Annotation $annotation is not public.',
+                asset: resolver.getSourceAssetId(annotation.parent.element),
+                span: resolver.getSourceSpan(annotation.parent.element));
+            return false;
+          }
+          return true;
+        }).toList();
+
 
     visitor.memberAnnotations.forEach((memberName, annotations) {
       if (annotations.length > 1) {

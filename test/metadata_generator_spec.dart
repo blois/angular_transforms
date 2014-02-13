@@ -329,6 +329,64 @@ main() {
             ]
           });
     });
+
+    it('should not extract private annotations', () {
+      return generates(phases,
+          inputs: {
+            'a|web/main.dart': '''import 'package:a/a.dart'; ''',
+            'angular|lib/angular.dart': PACKAGE_ANGULAR,
+            'a|lib/a.dart': '''
+                import 'package:angular/angular.dart';
+
+                @_Foo()
+                @_foo
+                class Engine {
+                }
+
+                class _Foo {
+                  const _Foo();
+                }
+                const _Foo _foo = const _Foo();
+                ''',
+          },
+          messages: [
+            'warning: Annotation @_Foo() is not public. (lib/a.dart 2 16)',
+            'warning: Annotation @_foo is not public. (lib/a.dart 2 16)',
+          ]);
+    });
+
+    it('supports named constructors', () {
+      return generates(phases,
+          inputs: {
+            'a|web/main.dart': '''import 'package:a/a.dart'; ''',
+            'angular|lib/angular.dart': PACKAGE_ANGULAR,
+            'a|lib/a.dart': '''
+                import 'package:angular/angular.dart';
+
+                @Foo.bar()
+                @Foo._private()
+                class Engine {
+                }
+
+                class Foo {
+                  const Foo.bar();
+                  const Foo._private();
+                }
+                ''',
+          },
+          imports: [
+            'import \'package:a/a.dart\' as import_0;',
+          ],
+          classes: {
+            'import_0.Engine': [
+              '''const import_0.Foo.bar()''',
+            ]
+          },
+          messages: [
+            'warning: Annotation @Foo._private() is not public. '
+                '(lib/a.dart 2 16)',
+          ]);
+    });
   });
 }
 
