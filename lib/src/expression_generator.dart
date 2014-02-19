@@ -1,13 +1,14 @@
 library angular_transformers.expression_generator;
 
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:analyzer/src/generated/element.dart';
-import 'package:angular/tools/source_crawler.dart';
-import 'package:angular/tools/html_extractor.dart';
-import 'package:angular/tools/source_metadata_extractor.dart';
 import 'package:angular/core/module.dart';
 import 'package:angular/core/parser/parser.dart';
-import 'package:angular/tools/parser_generator/generator.dart';
+import 'package:angular/tools/html_extractor.dart';
+import 'package:angular/tools/parser_getter_setter/generator.dart';
+import 'package:angular/tools/source_crawler.dart';
+import 'package:angular/tools/source_metadata_extractor.dart';
 import 'package:angular_transformers/options.dart';
 import 'package:barback/barback.dart';
 import 'package:di/di.dart';
@@ -60,14 +61,13 @@ class ExpressionGenerator extends Transformer {
         .forEach(htmlExtractor.parseHtml)
         .then((_) {
       var module = new Module()
-        ..type(FilterMap, implementedBy: NullFilterMap)
         ..type(Parser, implementedBy: DynamicParser)
-        ..type(ParserBackend, implementedBy: DynamicParserBackend)
-        ..value(SourcePrinter, new _StreamPrinter(outputBuffer));
+        ..type(ParserBackend, implementedBy: DartGetterSetterGen);
       var injector =
           new DynamicInjector(modules: [module], allowImplicitInjection: true);
 
-      injector.get(ParserGenerator).generateParser(htmlExtractor.expressions);
+      injector.get(_ParserGetterSetter).generateParser(
+          htmlExtractor.expressions.toList(), outputBuffer);
 
       var outputId =
           new AssetId(asset.id.package, 'lib/$_generatedExpressionFilename');
@@ -119,41 +119,13 @@ void _writeStaticExpressionHeader(AssetId id, StringSink sink) {
 library ${id.package}.$libPath.generated_expressions;
 
 import 'package:angular/angular.dart';
-import 'package:angular/core/parser/parser.dart';
-import 'package:angular/core/parser/utils.dart';
+import 'package:angular/core/parser/dynamic_parser.dart' show ClosureMap;
 
 Module get expressionModule => new Module()
-    ..type(Parser, implementedBy: StaticParser)
-    ..type(StaticParserFunctions,
-        implementedBy: GeneratedStaticParserFunctions)
-    ..value(DynamicParser, new _UnsupportedDynamicParser());
+    ..value(ClosureMap, new StaticClosureMap());
 
-class _UnsupportedDynamicParser implements DynamicParser {
-  Expression call(String input) =>
-      throw new StateError(
-          'Should not be evaluating \$input with the dynamic parser');
-}
-
-typedef Function FilterLookup(String filterName);
-
-@NgInjectableService()
-class GeneratedStaticParserFunctions extends StaticParserFunctions {
-  GeneratedStaticParserFunctions() :
-      super(buildEval(), buildAssign());
-}
 ''');
 }
-
-class _StreamPrinter implements SourcePrinter {
-  final StringSink _sink;
-
-  _StreamPrinter(this._sink);
-
-  printSrc(src) {
-    _sink.write('$src\n');
-  }
-}
-
 
 class _LibrarySourceCrawler implements SourceCrawler {
   final List<LibraryElement> libraries;
@@ -165,3 +137,77 @@ class _LibrarySourceCrawler implements SourceCrawler {
         .forEach(visitor);
   }
 }
+
+class _ParserGetterSetter {
+  final Parser parser;
+  final ParserBackend backend;
+  _ParserGetterSetter(this.parser, this.backend);
+
+  generateParser(List<String> exprs, StringSink sink) {
+    exprs.forEach((expr) {
+      try {
+        parser(expr);
+      } catch (e) {
+        // Ignore exceptions.
+      }
+    });
+
+    DartGetterSetterGen backend = this.backend;
+    sink.write(generateClosureMap(backend.properties, backend.calls));
+  }
+
+  String generateClosureMap(Set<String> properties,
+      Map<String, Set<int>> calls) {
+    return '''
+class StaticClosureMap extends ClosureMap {
+  Map<String, Getter> _getters = ${generateGetterMap(properties)};
+  Map<String, Setter> _setters = ${generateSetterMap(properties)};
+  List<Map<String, Function>> _functions = ${generateFunctionMap(calls)};
+
+  Getter lookupGetter(String name)
+      => _getters[name];
+  Setter lookupSetter(String name)
+      => _setters[name];
+  lookupFunction(String name, int arity)
+      => (arity < _functions.length) ? _functions[arity][name] : null;
+}
+''';
+  }
+
+  generateGetterMap(Iterable<String> keys) {
+    var lines = keys.map((key) => 'r"${key}": (o) => o.$key');
+    return '{\n   ${lines.join(",\n    ")}\n  }';
+  }
+
+  generateSetterMap(Iterable<String> keys) {
+    var lines = keys.map((key) => 'r"${key}": (o, v) => o.$key = v');
+    return '{\n   ${lines.join(",\n    ")}\n  }';
+  }
+
+  generateFunctionMap(Map<String, Set<int>> calls) {
+    Map<int, Set<String>> arities = {};
+    calls.forEach((name, callArities) {
+      callArities.forEach((arity){
+        arities.putIfAbsent(arity, () => new Set<String>()).add(name);
+      });
+    });
+
+    var maxArity = arities.isEmpty ? 0 :
+        arities.keys.reduce((x, y) => math.max(x, y));
+
+    var maps = new Iterable.generate(maxArity, (arity) {
+      var names = arities[arity];
+      if (names == null) {
+        return '{\n    }';
+      } else {
+        var args = new List.generate(arity, (e) => "a$e").join(',');
+        var p = args.isEmpty ? '' : ', $args';
+        var lines = names.map((name) => 'r"$name": (o$p) => o.$name($args)');
+        return '{\n    ${lines.join(",\n    ")}\n  }';
+      }
+    });
+
+    return '[${maps.join(",")}]';
+  }
+}
+

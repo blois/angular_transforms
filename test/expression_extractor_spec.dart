@@ -122,46 +122,17 @@ import 'package:angular_transformers/auto_modules.dart';
           },
           results: {
             'a|lib/generated_static_expressions.dart': '''
-$IMPORTS
-Map<String, Function> buildEval() {
-  return {
-    "some.getter": (scope, filters) => _getter(_some(scope))
+$HEADER
+  Map<String, Getter> _getters = {
+   r"some": (o) => o.some,
+    r"getter": (o) => o.getter
   };
-}
-
-Map<String, Function> buildAssign() {
-  return {
-    "some.getter": (scope, value) => _set\$getter(_ensure\$some(scope), value)
+  Map<String, Setter> _setters = {
+   r"some": (o, v) => o.some = v,
+    r"getter": (o, v) => o.getter = v
   };
-}
-
-_some(o) {
-  if (o == null) return null;
-  return (o is Map) ? o["some"] : o.some;
-}
-
-_getter(o) {
-  if (o == null) return null;
-  return (o is Map) ? o["getter"] : o.getter;
-}
-
-_ensure\$some(o) {
-  if (o == null) return null;
-  if (o is Map) {
-    var key = "some";
-    var result = o[key];
-    return (result == null) ? result = o[key] = {} : result;
-  } else {
-    var result = o.some;
-    return (result == null) ? result = o.some = {} : result;
-  }
-}
-
-_set\$getter(o, v) {
-  if (o is Map) o["getter"] = v; else o.getter = v;
-  return v;
-}
-
+  List<Map<String, Function>> _functions = [];
+$FOOTER
 '''
         }).then((_) {
           htmlFiles.clear();
@@ -170,36 +141,26 @@ _set\$getter(o, v) {
   });
 }
 
-const String IMPORTS = '''
+const String HEADER = '''
 library a.web.main.generated_expressions;
 
 import 'package:angular/angular.dart';
-import 'package:angular/core/parser/parser.dart';
-import 'package:angular/core/parser/utils.dart';
+import 'package:angular/core/parser/dynamic_parser.dart' show ClosureMap;
 
 Module get expressionModule => new Module()
-    ..type(Parser, implementedBy: StaticParser)
-    ..type(StaticParserFunctions,
-        implementedBy: GeneratedStaticParserFunctions)
-    ..value(DynamicParser, new _UnsupportedDynamicParser());
+    ..value(ClosureMap, new StaticClosureMap());
 
-class _UnsupportedDynamicParser implements DynamicParser {
-  Expression call(String input) =>
-      throw new StateError(
-          'Should not be evaluating \$input with the dynamic parser');
-}
+class StaticClosureMap extends ClosureMap {''';
 
-typedef Function FilterLookup(String filterName);
+const String FOOTER = '''
 
-@NgInjectableService()
-class GeneratedStaticParserFunctions extends StaticParserFunctions {
-  GeneratedStaticParserFunctions() :
-      super(buildEval(), buildAssign());
-}
-StaticParserFunctions functions()
-    => new StaticParserFunctions(
-           buildEval(), buildAssign());
-''';
+  Getter lookupGetter(String name)
+      => _getters[name];
+  Setter lookupSetter(String name)
+      => _setters[name];
+  lookupFunction(String name, int arity)
+      => (arity < _functions.length) ? _functions[arity][name] : null;
+}''';
 
 const String PACKAGE_AUTO = '''
 library angular_transformers.auto_modules;
