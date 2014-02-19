@@ -6,11 +6,9 @@ packages:
     source: hosted
     version: "0.11.10"
   angular:
-    description:
-      path: "../angular.dart"
-      relative: true
-    source: path
-    version: "0.9.5"
+    description: angular
+    source: hosted
+    version: "0.9.8"
   args:
     description: args
     source: hosted
@@ -28,10 +26,8 @@ packages:
     source: hosted
     version: "0.9.1"
   di:
-    description:
-      path: "../di.dart"
-      relative: true
-    source: path
+    description: di
+    source: hosted
     version: "0.0.32"
   html5lib:
     description: html5lib
