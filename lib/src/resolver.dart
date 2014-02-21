@@ -244,6 +244,21 @@ class Resolver {
     return sourceFile.span(element.node.offset, element.node.end);
   }
 
+  AssetId getNodeSourceAssetId(ASTNode node) {
+    var source = node.root.element.source;
+    if (source is _AssetBasedSource) return source.assetId;
+    return null;
+  }
+
+  Span getNodeSourceSpan(ASTNode node) {
+    var assetId = getNodeSourceAssetId(node);
+    if (assetId == null) return null;
+
+    var sourceFile = new SourceFile.text(assetId.path,
+        sources[assetId].contents);
+    return sourceFile.span(node.offset, node.end);
+  }
+
   /**
    * Creates a text edit transaction for the given element if it is able
    * to be edited, returns null otherwise.

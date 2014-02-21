@@ -11,9 +11,11 @@ import 'common.dart';
 main() {
   describe('generator', () {
     var injectableAnnotations = [];
+    var invokableClosureMethods = [];
     var options = new TransformOptions(
         dartEntry: 'web/main.dart',
         injectableAnnotations: injectableAnnotations,
+        invokableClosureMethods: invokableClosureMethods,
         sdkDirectory: dartSdkDirectory);
 
     var resolver = new ResolverTransformer(dartSdkDirectory,
@@ -38,7 +40,7 @@ main() {
                   Car(Engine e, seat.Seat s) {}
                 }
                 ''',
-            'a|lib/engine.dart': CLASS_ENGINE,
+            'a|lib/engine.dart': classEngine,
             'a|lib/seat.dart': '''
                 import 'package:inject/inject.dart';
                 class Seat {
@@ -113,8 +115,8 @@ main() {
                 '''
           },
           messages: [
-            'warning: Bar cannot be injected because Foo<bool> is a '
-            'parameterized type. (lib/a.dart 3 18)'
+            'warning: Bar(Foo<bool> f) → Bar cannot be injected because '
+            'Foo<bool> is a parameterized type. (lib/a.dart 3 18)'
           ]);
     });
 
@@ -144,7 +146,7 @@ main() {
           inputs: {
             'a|web/main.dart': 'import "package:a/a.dart";',
             'a|lib/a.dart': 'export "package:a/b.dart";',
-            'a|lib/b.dart': CLASS_ENGINE
+            'a|lib/b.dart': classEngine
           },
           imports: [
             "import 'package:a/b.dart' as import_0;",
@@ -163,7 +165,7 @@ main() {
                 'part "b.dart";',
             'a|lib/b.dart': '''
                 part of a.a;
-                $CLASS_ENGINE
+                $classEngine
                 '''
           },
           imports: [
@@ -179,7 +181,7 @@ main() {
           inputs: {
             'a|web/main.dart': 'import "package:a/a.dart";',
             'a|lib/a.dart': 'import "b.dart";',
-            'a|lib/b.dart': CLASS_ENGINE
+            'a|lib/b.dart': classEngine
           },
           imports: [
             "import 'package:a/b.dart' as import_0;",
@@ -201,7 +203,7 @@ main() {
                   Car(Engine engine);
                 }
                 ''',
-            'a|lib/b.dart': CLASS_ENGINE
+            'a|lib/b.dart': classEngine
           },
           imports: [
             "import 'package:a/a.dart' as import_0;",
@@ -382,10 +384,11 @@ main() {
                   }
                   '''
             },
-            messages: ['warning: Engine cannot be injected because parameter '
-                'type foo cannot be resolved. (lib/a.dart 3 20)',
-                'warning: Car cannot be injected because parameter type '
-                'foo cannot be resolved. (lib/a.dart 9 20)']);
+            messages: ['warning: Engine(dynamic foo) → Engine cannot be '
+                'injected because parameter type foo cannot be resolved. '
+                '(lib/a.dart 3 20)',
+                'warning: Car(dynamic foo) → Car cannot be injected because '
+                'parameter type foo cannot be resolved. (lib/a.dart 9 20)']);
       });
 
       it('supports custom annotations', () {
@@ -393,7 +396,7 @@ main() {
         return generates(phases,
             inputs: {
               'a|web/main.dart': 'import "package:a/a.dart";',
-              'angular|lib/angular.dart': PACKAGE_ANGULAR,
+              'angular|lib/angular.dart': packageAngular,
               'a|lib/a.dart': '''
                   import 'package:angular/angular.dart';
                   @NgInjectableService()
@@ -413,7 +416,7 @@ main() {
             generators: [
               'import_0.Engine: (f) => new import_0.Engine(),',
               'import_0.Car: (f) => new import_0.Car(),',
-            ]).then((_) {
+            ]).whenComplete(() {
               injectableAnnotations.clear();
             });
       });
@@ -450,7 +453,7 @@ main() {
         return generates(phases,
             inputs: {
               'a|web/main.dart': 'import "package:a/a.dart";',
-              'di|lib/annotations.dart': PACKAGE_DI,
+              'di|lib/annotations.dart': packageDi,
               'a|lib/a.dart': '''
                   @Injectables(const[Engine])
                   library a;
@@ -527,6 +530,61 @@ main() {
                 'annotated for injection. (lib/a.dart 2 18)']);
       });
 
+      it('extracts injected methods', () {
+        invokableClosureMethods.add('tests.inject.inject');
+
+        return generates(phases,
+            inputs: {
+              'a|web/main.dart': 'import "package:a/a.dart";',
+              'tests|lib/inject.dart': packageTestsInject,
+              'a|lib/a.dart': '''
+                  import "package:tests/inject.dart";
+
+                  class Car {}
+
+                  main() {
+                    inject((Car car) {});
+                  }
+                  '''
+            },
+            imports: [
+              "import 'package:a/a.dart' as import_0;",
+            ],
+            typedefParams: [
+              ['import_0.Car']
+            ]).whenComplete(() {
+              invokableClosureMethods.clear();
+            });
+      });
+
+      it('warns on injecting non-closures', () {
+        invokableClosureMethods.add('tests.inject.inject');
+        return generates(phases,
+            inputs: {
+              'a|web/main.dart': 'import "package:a/a.dart";',
+              'tests|lib/inject.dart': packageTestsInject,
+              'a|lib/a.dart': '''
+                  import "package:tests/inject.dart";
+
+                  class Car {}
+
+                  main() {
+                    inject(doSomething);
+                  }
+
+                  void doSomething(Car car) {
+
+                  }
+                  '''
+            },
+            messages: [
+              'warning: doSomething cannot be injected because the argument '
+              'must be a function literal. (lib/a.dart 5 27)',
+            ]).whenComplete(() {
+              invokableClosureMethods.clear();
+            });
+      });
+
       it('transforms main', () {
         return transform(phases,
             inputs: {
@@ -542,7 +600,7 @@ main() {
   var module2 = am.defaultInjector(modules: null, name: 'foo');
   print(module2);
 }''',
-              'angular_transformers|lib/auto_modules.dart': PACKAGE_AUTO
+              'angular_transformers|lib/auto_modules.dart': packageAuto
             },
             results: {
               'a|web/main.dart': '''
@@ -567,26 +625,47 @@ main() {
 Future generates(List<List<Transformer>> phases,
     {Map<String, String> inputs, Iterable<String> imports: const [],
     Iterable<String> generators: const [],
+    Iterable<String> typedefParams: const [],
     Iterable<String> messages: const []}) {
 
-  inputs['inject|lib/inject.dart'] = PACKAGE_INJECT;
+  inputs['inject|lib/inject.dart'] = packageInject;
 
   imports = imports.map((i) => '$i\n');
   generators = generators.map((t) => '  $t\n');
+  var typedefIndex = 0;
+  var typedefDecls = typedefParams
+      .map((params) {
+        var paramIdx = 0;
+        var parameters = params.map((p) => '$p p${paramIdx++}').join(', ');
+        return 'typedef td_${typedefIndex++}($parameters);\n';
+      })
+      .join('');
+
+  typedefIndex = 0;
+  var typedefChecks = typedefParams
+      .map((params) {
+        var getters = params.map((param) => 'f($param)').join(', ');
+        return '  if (fn is td_${typedefIndex++}) '
+            'return (f) => fn($getters);\n';
+      })
+      .join('');
 
   return transform(phases,
       inputs: inputs,
       results: {
           'a|lib/generated_static_injector.dart': '''
-$IMPORTS
-${imports.join('')}$BOILER_PLATE
-${generators.join('')}$FOOTER
+$importsHeader
+${imports.join('')}$boilerPlate
+${generators.join('')}$factoriesFooter
+$typedefDecls
+$closureInjectorHeader
+$typedefChecks$closureInjectorFooter
 ''',
       },
       messages: messages);
 }
 
-const String IMPORTS = '''
+const String importsHeader = '''
 library a.web.main.generated_static_injector;
 
 import 'package:di/di.dart';
@@ -598,29 +677,36 @@ import 'package:di/static_injector.dart';
     'di.src.reflected_type'])
 import 'dart:mirrors';''';
 
-const String BOILER_PLATE = '''
+const String boilerPlate = '''
 Injector createStaticInjector({List<Module> modules, String name,
     bool allowImplicitInjection: false}) =>
   new StaticInjector(modules: modules, name: name,
       allowImplicitInjection: allowImplicitInjection,
-      typeFactories: factories);
+      typeFactories: factories,
+      closureSource: closures);
 
 Module get staticInjectorModule => new Module()
     ..value(Injector, createStaticInjector(name: 'Static Injector'));
 
 final Map<Type, TypeFactory> factories = <Type, TypeFactory>{''';
 
-const String FOOTER = '''
+const String factoriesFooter = '''
 };''';
 
-const String CLASS_ENGINE = '''
+const String closureInjectorHeader = '''
+ClosureInvoker closures(Function fn) {''';
+
+const String closureInjectorFooter = '''  return null;
+}''';
+
+const String classEngine = '''
     import 'package:inject/inject.dart';
     class Engine {
       @inject
       Engine();
     }''';
 
-const String PACKAGE_ANGULAR = '''
+const String packageAngular = '''
 library angular;
 
 class NgInjectableService {
@@ -628,7 +714,7 @@ class NgInjectableService {
 }
 ''';
 
-const String PACKAGE_INJECT = '''
+const String packageInject = '''
 library inject;
 
 class InjectAnnotation {
@@ -637,7 +723,7 @@ class InjectAnnotation {
 const inject = const InjectAnnotation._();
 ''';
 
-const String PACKAGE_DI = '''
+const String packageDi = '''
 library di.annotations;
 
 class Injectables {
@@ -646,10 +732,16 @@ class Injectables {
 }
 ''';
 
-const String PACKAGE_AUTO = '''
+const String packageAuto = '''
 library angular_transformers.auto_modules;
 
 defaultInjector({List modules, String name,
     bool allowImplicitInjection: false}) => null;
 }
+''';
+
+const String packageTestsInject = '''
+library tests.inject;
+
+inject(Function fn) {}
 ''';

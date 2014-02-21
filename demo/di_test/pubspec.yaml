@@ -4,9 +4,20 @@ description: Test for generating files for DI
 dependencies:
   angular_transformers:
     path: ../..
-  di:
-    path: ../../../di.dart
+  di: any
 dev_dependencies:
   benchmark_harness: any
   unittest: any
   browser: any
+transformers:
+- angular_transformers:
+    dart_entry: test/main.dart
+    injectable_annotations:
+    - di_test.injectables.Injectable
+    invokable_closures:
+    - di.tests.inject
+
+dependency_overrides:
+  analyzer: 0.11.10
+  di:
+    path: ../../../di.dart

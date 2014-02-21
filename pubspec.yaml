@@ -19,3 +19,5 @@ dev_dependencies:
   browser: '>=0.8.7 <0.10.0'
 dependency_overrides:
   analyzer: 0.11.10
+  di:
+    path: ../di.dart

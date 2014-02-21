@@ -18,18 +18,24 @@ class TransformOptions {
    * The paths are relative to the package home and are represented using posix
    * style, which matches the representation used in asset ids in barback.
    */
-  final List<String> htmlFiles;
+  final Iterable<String> htmlFiles;
 
   /**
    * List of additional annotations which are used to indicate types as being
    * injectable.
    */
-  final List<String> injectableAnnotations;
+  final Iterable<String> injectableAnnotations;
 
   /**
    * Set of additional types which should be injected.
    */
   final Set<String> injectedTypes;
+
+  /**
+   * Set of top-level methods for which any closures passed into them should
+   * be made dynamically invokable.
+   */
+  final Iterable<String> invokableClosureMethods;
 
   /**
    * Path to the Dart SDK directory, for resolving Dart libraries.
@@ -38,14 +44,17 @@ class TransformOptions {
 
   TransformOptions({String dartEntry,
       String sdkDirectory, List<String> htmlFiles,
-      List<String> injectableAnnotations, List<String> injectedTypes})
+      List<String> injectableAnnotations, List<String> injectedTypes,
+      List<String> invokableClosureMethods})
     : dartEntry = _systemToAssetPath(dartEntry),
       sdkDirectory = sdkDirectory,
       htmlFiles = htmlFiles != null ? htmlFiles : [],
       injectableAnnotations =
           injectableAnnotations != null ? injectableAnnotations : [],
       injectedTypes =
-          new Set.from(injectedTypes != null ? injectedTypes : []) {
+          new Set.from(injectedTypes != null ? injectedTypes : []),
+      invokableClosureMethods =
+          invokableClosureMethods != null ? invokableClosureMethods : [] {
     if (sdkDirectory == null)
       throw new ArgumentError('sdkDirectory must be provided.');
   }

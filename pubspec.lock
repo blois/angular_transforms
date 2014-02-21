@@ -26,8 +26,10 @@ packages:
     source: hosted
     version: "0.9.1"
   di:
-    description: di
-    source: hosted
+    description:
+      path: "../di.dart"
+      relative: true
+    source: path
     version: "0.0.32"
   html5lib:
     description: html5lib

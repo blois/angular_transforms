@@ -13,24 +13,13 @@ library di.tests;
 
 import 'fixed-unittest.dart';
 import 'package:di/di.dart';
-import 'package:di/dynamic_injector.dart';
-import 'package:di/static_injector.dart';
 import 'package:di/annotations.dart';
 import 'package:angular_transformers/auto_modules.dart' as auto;
 import 'package:di_test/injectables.dart';
 
 void main() {
-  createInjectorSpec('DynamicInjector',
+  createInjectorSpec('Injector',
       (modules, [name]) => auto.defaultInjector(modules: modules, name: name));
-
-  // Initialize generated type factories.
-  // type_factories_gen.main();
-
-  // createInjectorSpec('StaticInjector',
-  //     (modules, [name]) => new StaticInjector(modules: modules, name: name,
-  //         typeFactories: type_factories_gen.typeFactories));
-
-  dynamicInjectorTest();
 }
 
 typedef Injector InjectorFactory(List<Module> modules, [String name]);
@@ -355,6 +344,19 @@ createInjectorSpec(String injectorName, InjectorFactory injectorFactory) {
       expect(injector.get(Log).log.join(' '), 'ClassOne');
     });
 
+    it('should allow injecting closures', () {
+      _globalInjector = injectorFactory([
+          new Module()
+            ..type(Engine)
+      ]);
+
+      var instance;
+      inject((Engine e) {
+        instance = e;
+      });
+      expect(instance, instanceOf(Engine));
+      expect(instance.id, toEqual('v8-id'));
+    });
 
     describe('creation strategy', () {
 
@@ -430,11 +432,13 @@ createInjectorSpec(String injectorName, InjectorFactory injectorFactory) {
       });
 
     });
-
   });
 
 }
 
+var _globalInjector;
+inject(Function fn) => _globalInjector.invoke(fn);
+/*
 void dynamicInjectorTest() {
   describe('DynamicInjector', () {
 
@@ -461,3 +465,4 @@ void dynamicInjectorTest() {
 
   });
 }
+*/

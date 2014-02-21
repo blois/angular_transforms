@@ -23,6 +23,7 @@ class InjectorGenerator extends Transformer {
   Resolver _resolver;
   List<TopLevelVariableElement> _injectableMetaConsts;
   List<ConstructorElement> _injectableMetaConstructors;
+  List<FunctionElement> _invokableClosures;
 
   InjectorGenerator(this.options, this.resolvers);
 
@@ -37,7 +38,9 @@ class InjectorGenerator extends Transformer {
       _resolveInjectableMetadata();
       var constructors = _gatherConstructors();
 
-      var injectLibContents = _generateInjectLibrary(constructors);
+      var closures = _gatherInjectedClosures();
+
+      var injectLibContents = _generateInjectLibrary(constructors, closures);
 
       var outputId = new AssetId(transform.primaryInput.id.package,
           'lib/$_generateInjector');
@@ -59,6 +62,7 @@ class InjectorGenerator extends Transformer {
   void _resolveInjectableMetadata() {
     _injectableMetaConsts = <TopLevelVariableElement>[];
     _injectableMetaConstructors = <ConstructorElement>[];
+    _invokableClosures = <FunctionElement>[];
 
     for (var constName in _defaultInjectableMetaConsts) {
       var variable = _resolver.getLibraryVariable(constName);
@@ -79,6 +83,21 @@ class InjectorGenerator extends Transformer {
         continue;
       }
       _logger.warning('Unable to resolve injectable annotation $metaName');
+    }
+
+    for (var name in options.invokableClosureMethods) {
+      var fn = _resolver.getLibraryFunction(name);
+      if (fn == null) {
+        _logger.warning('Unable to resolve invokable closure method $name');
+        continue;
+      }
+      if (fn.parameters.length != 1) {
+        _logger.warning('Injectable closure must take a single parameter',
+            asset: _resolver.getSourceAssetId(fn),
+            span: _resolver.getSourceSpan(fn));
+        continue;
+      }
+      _invokableClosures.add(fn);
     }
   }
 
@@ -251,21 +270,25 @@ class InjectorGenerator extends Transformer {
           span: _resolver.getSourceSpan(ctor));
       return false;
     }
-    for (var param in ctor.parameters) {
+    return _validateExecutableElement(ctor);
+  }
+
+  bool _validateExecutableElement(ExecutableElement e) {
+    for (var param in e.parameters) {
       var type = param.type;
       if (type is InterfaceType &&
           type.typeArguments.any((t) => !t.isDynamic)) {
-        _logger.warning('${cls.name} cannot be injected because '
+        _logger.warning('$e cannot be injected because '
             '${param.type} is a parameterized type.',
-            asset: _resolver.getSourceAssetId(ctor),
-            span: _resolver.getSourceSpan(ctor));
+            asset: _resolver.getSourceAssetId(e),
+            span: _resolver.getSourceSpan(e));
         return false;
       }
       if (type.isDynamic) {
-        _logger.warning('${cls.name} cannot be injected because parameter type '
+        _logger.warning('$e cannot be injected because parameter type '
           '${param.name} cannot be resolved.',
-            asset: _resolver.getSourceAssetId(ctor),
-            span: _resolver.getSourceSpan(ctor));
+            asset: _resolver.getSourceAssetId(e),
+            span: _resolver.getSourceSpan(e));
         return false;
       }
     }
@@ -275,7 +298,8 @@ class InjectorGenerator extends Transformer {
   /**
    * Creates a library file for the specified constructors.
    */
-  String _generateInjectLibrary(Iterable<ConstructorElement> constructors) {
+  String _generateInjectLibrary(Iterable<ConstructorElement> constructors,
+      Iterable<_TypedefInfo> typedefs) {
     var outputBuffer = new StringBuffer();
 
     _writeStaticInjectorHeader(_resolver.entryPoint, outputBuffer);
@@ -285,8 +309,9 @@ class InjectorGenerator extends Transformer {
     var ctorTypes = constructors.map((ctor) => ctor.enclosingElement).toSet();
     var paramTypes = constructors.expand((ctor) => ctor.parameters)
         .map((param) => param.type.element).toSet();
+    var typedefTypes = typedefs.expand((t) => t.parameters).toSet();
 
-    var libs = ctorTypes..addAll(paramTypes);
+    var libs = ctorTypes..addAll(paramTypes)..addAll(typedefTypes);
     libs = libs.map((type) => type.library).toSet();
 
     for (var lib in libs) {
@@ -314,7 +339,31 @@ class InjectorGenerator extends Transformer {
       outputBuffer.write('${params.join(', ')}),\n');
     }
 
-    _writeFooter(outputBuffer);
+    _writeTypeFactoryFooter(outputBuffer);
+
+    var index = 0;
+    for (var td in typedefs) {
+      outputBuffer.write('typedef td_${index++}(');
+      var paramIdx = 0;
+      var params = td.parameters.map((param) {
+        var type = param.type.element;
+        return '${prefixes[type.library]}${type.name} p${paramIdx++}';
+      });
+      outputBuffer.write('${params.join(', ')});\n');
+    }
+
+    _writeClosureInjectorHeader(outputBuffer);
+    index = 0;
+    for (var td in typedefs) {
+      outputBuffer.write('  if (fn is td_${index++}) return (f) => fn(');
+      var params = td.parameters.map((param) {
+        var type = param.type.element;
+        var typeName = '${prefixes[type.library]}${type.name}';
+        return 'f($typeName)';
+      });
+      outputBuffer.write('${params.join(', ')});\n');
+    }
+    _writeClosureInjectorFooter(outputBuffer);
 
     return outputBuffer.toString();
   }
@@ -358,6 +407,81 @@ class InjectorGenerator extends Transformer {
       transform.addOutput(transform.primaryInput);
     }
   }
+
+  Iterable<_TypedefInfo> _gatherInjectedClosures() {
+    var methods = [];
+    var visitor = new _MethodInvocationVisitor((node) {
+      var element = node.methodName.bestElement;
+      if (_invokableClosures.contains(element)) {
+        methods.add(node);
+      }
+    });
+    for (var lib in _resolver.libraries) {
+      lib.definingCompilationUnit.node.accept(visitor);
+    }
+
+    return methods.map(_extractTypedef)
+        .where((t) => t != null)
+        .toList();
+  }
+
+  _TypedefInfo _extractTypedef(MethodInvocation invocation) {
+    var args = invocation.argumentList;
+    if (args.arguments.length != 1) {
+      _logger.warning('$invocation cannot be injected because '
+          'it must have a single argument.',
+          asset: _resolver.getNodeSourceAssetId(invocation),
+          span: _resolver.getNodeSourceSpan(invocation));
+      return null;
+    }
+    var closure = args.arguments.single;
+    if (closure is! FunctionExpression) {
+      _logger.warning('$closure cannot be injected because '
+          'the argument must be a function literal.',
+          asset: _resolver.getNodeSourceAssetId(closure),
+          span: _resolver.getNodeSourceSpan(closure));
+      return null;
+    }
+    var functionElement = closure.element;
+    if (!_validateExecutableElement(functionElement)) return null;
+
+    return new _TypedefInfo(functionElement);
+  }
+}
+
+class _MethodInvocationVisitor extends GeneralizingASTVisitor {
+  final Iterable<FunctionElement> invokableClosures;
+  final List<MethodInvocation> methods = <MethodInvocation>[];
+
+  final Function callback;
+
+  _MethodInvocationVisitor(void callback(MethodInvocation node)) :
+      callback = callback;
+
+  visitMethodInvocation(MethodInvocation node) {
+    callback(node);
+    return super.visitMethodInvocation(node);
+  }
+}
+
+class _TypedefInfo {
+  final List<ClassElement> parameters;
+  _TypedefInfo(FunctionElement e):
+      parameters = e.parameters.map((param) => param.type.element).toList();
+
+  bool operator == (var other) {
+    if (other != _TypedefInfo) return false;
+
+    if (other.parameters.length != parameters.length) return false;
+
+    for (var i = 0; i < parameters.length; ++i) {
+      if (parameters[i] != other.parameters[i]) return false;
+    }
+    return true;
+  }
+
+  int get hashCode => parameters.fold(
+          parameters.length * 7, (hash, type) => hash ^ type.hashCode);
 }
 
 void _writeStaticInjectorHeader(AssetId id, StringSink sink) {
@@ -382,7 +506,8 @@ Injector createStaticInjector({List<Module> modules, String name,
     bool allowImplicitInjection: false}) =>
   new StaticInjector(modules: modules, name: name,
       allowImplicitInjection: allowImplicitInjection,
-      typeFactories: factories);
+      typeFactories: factories,
+      closureSource: closures);
 
 Module get staticInjectorModule => new Module()
     ..value(Injector, createStaticInjector(name: 'Static Injector'));
@@ -391,8 +516,21 @@ final Map<Type, TypeFactory> factories = <Type, TypeFactory>{
 ''');
 }
 
-void _writeFooter(StringSink sink) {
+void _writeTypeFactoryFooter(StringSink sink) {
   sink.write('''
 };
+''');
+}
+
+void _writeClosureInjectorHeader(StringSink sink) {
+  sink.write('''
+
+ClosureInvoker closures(Function fn) {
+''');
+}
+
+void _writeClosureInjectorFooter(StringSink sink) {
+sink.write('''  return null;
+}
 ''');
 }

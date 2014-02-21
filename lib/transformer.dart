@@ -52,6 +52,7 @@ TransformOptions _parseSettings(BarbackSettings settings) {
       htmlFiles: _readStringListValue(args, 'html_files'),
       injectableAnnotations: annotations,
       injectedTypes: injectedTypes,
+      invokableClosureMethods: _readStringListValue(args, 'invokable_closures'),
       sdkDirectory: sdkDir);
 }
 
