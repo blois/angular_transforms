@@ -1,4 +1,4 @@
-library angular_transformers.common;
+library angular_transformers.src.refactor;
 
 import 'package:analyzer/src/generated/ast.dart';
 import 'package:analyzer/src/generated/element.dart';
@@ -20,6 +20,11 @@ void transformIdentifiers(Transform transform, Resolver resolver,
     String importPrefix}) {
 
   var identifierElement = resolver.getLibraryVariable(identifier);
+  if (identifierElement != null) {
+    identifierElement = identifierElement.getter;
+  } else {
+    identifierElement = resolver.getLibraryFunction(identifier);
+  }
 
   if (identifierElement == null) {
     transform.logger.info('Unable to resolve $identifier, not '
@@ -82,49 +87,24 @@ void addImport(TextEditTransaction transaction, CompilationUnit unit,
 
 class _IdentifierTransformer extends GeneralizingASTVisitor {
   final TextEditTransaction transaction;
-  final TopLevelVariableElement original;
+  final Element original;
   final String replacement;
 
   _IdentifierTransformer(this.transaction, this.original, this.replacement);
 
-  visitSimpleIdentifier(SimpleIdentifier node) {
-    if (node.bestElement == original.getter) {
-      transaction.edit(node.beginToken.offset, node.endToken.end, replacement);
-    }
-    super.visitSimpleIdentifier(node);
-  }
-
-  visitPrefixedIdentifier(PrefixedIdentifier node) {
-    if (node.bestElement == original.getter) {
+  visitIdentifier(Identifier node) {
+    if (node.bestElement == original) {
       transaction.edit(node.beginToken.offset, node.endToken.end, replacement);
       return;
     }
 
-    super.visitPrefixedIdentifier(node);
+    super.visitIdentifier(node);
   }
 
-  // Skip the contents of imports/exports/parts
-  visitUriBasedDirective(ImportDirective d) {}
-}
-
-/// Changes all references from original to replacement, maintaining the method
-/// parameters of the original invocation.
-/// [original] must be a reference to a static function.
-void transformMethodInvocations(TextEditTransaction transaction,
-    CompilationUnit unit, FunctionElement original, String replacement) {
-  unit.accept(new _FunctionTransformer(transaction, original, replacement));
-}
-
-
-class _FunctionTransformer extends GeneralizingASTVisitor {
-  final TextEditTransaction transaction;
-  final FunctionElement candidate;
-  final String replacement;
-
-  _FunctionTransformer(this.transaction, this.candidate, this.replacement);
-
+  // Bug 17043- should be eliminated once prefixed top-level methods are
+  // treated as prefixed identifiers.
   visitMethodInvocation(MethodInvocation m) {
-    if (m.methodName.bestElement == candidate) {
+    if (m.methodName.bestElement == original) {
       if (m.target is SimpleIdentifier) {
         // Include the prefix in the rename.
         transaction.edit(m.target.beginToken.offset, m.methodName.endToken.end,
@@ -133,6 +113,7 @@ class _FunctionTransformer extends GeneralizingASTVisitor {
         transaction.edit(m.methodName.beginToken.offset,
             m.methodName.endToken.end, replacement);
       }
+      return;
     }
     super.visitMethodInvocation(m);
   }
@@ -140,4 +121,3 @@ class _FunctionTransformer extends GeneralizingASTVisitor {
   // Skip the contents of imports/exports/parts
   visitUriBasedDirective(ImportDirective d) {}
 }
-

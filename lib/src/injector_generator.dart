@@ -10,7 +10,7 @@ import 'package:di/dynamic_injector.dart';
 import 'package:path/path.dart' as path;
 import 'package:source_maps/refactor.dart';
 
-import 'common.dart';
+import 'refactor.dart';
 import 'resolver.dart';
 import 'resolver_transformer.dart';
 
@@ -43,7 +43,11 @@ class InjectorGenerator extends Transformer {
           'lib/$_generateInjector');
       transform.addOutput(new Asset.fromString(outputId, injectLibContents));
 
-      _transformAsset(transform);
+      transformIdentifiers(transform, _resolver,
+          identifier: 'angular_transformers.auto_modules.defaultInjector',
+          replacement: 'createStaticInjector',
+          importPrefix: 'generated_static_injector',
+          generatedFilename: _generateInjector);
 
       _logger = null;
       _resolver = null;
@@ -317,46 +321,6 @@ class InjectorGenerator extends Transformer {
     _writeFooter(outputBuffer);
 
     return outputBuffer.toString();
-  }
-
-  /**
-   * Modify the primary asset of the transform to import the generated source
-   * and modify all references to defaultInjector to refer to the generated
-   * static injector.
-   */
-  void _transformAsset(Transform transform) {
-    var autoInjector = _resolver.getLibraryFunction(
-        'angular_transformers.auto_modules.defaultInjector');
-
-    if (autoInjector == null) {
-      _logger.info('Unable to resolve defaultInjector, not transforming '
-          'entry point.');
-      transform.addOutput(transform.primaryInput);
-      return;
-    }
-
-    var lib = _resolver.entryLibrary;
-    var transaction = _resolver.createTextEditTransaction(lib);
-
-    var unit = lib.definingCompilationUnit.node;
-    transformMethodInvocations(transaction, unit, autoInjector,
-        'generated_static_injector.createStaticInjector');
-
-    if (transaction.hasEdits) {
-      var id = transform.primaryInput.id;
-
-      addImport(transaction, unit,
-          'package:${id.package}/$_generateInjector',
-          'generated_static_injector');
-
-      var printer = transaction.commit();
-      var url = id.path.startsWith('lib/')
-          ? 'package:${id.package}/${id.path.substring(4)}' : id.path;
-      printer.build(url);
-      transform.addOutput(new Asset.fromString(id, printer.text));
-    } else {
-      transform.addOutput(transform.primaryInput);
-    }
   }
 }
 

@@ -15,7 +15,7 @@ import 'package:di/di.dart';
 import 'package:di/dynamic_injector.dart';
 import 'package:path/path.dart' as path;
 
-import 'common.dart';
+import 'refactor.dart';
 import 'resolver.dart';
 import 'resolver_transformer.dart';
 
@@ -39,7 +39,7 @@ class ExpressionGenerator extends Transformer {
       new Future.value(options.isDartEntry(input.id));
 
   Future apply(Transform transform) {
-    var resolver = this.resolvers.getResolver(transform.primaryInput.id);
+    var resolver = resolvers.getResolver(transform.primaryInput.id);
     return resolver.updateSources(transform).then((_) {
       return _generateExpressions(transform, resolver);
     });
@@ -74,21 +74,13 @@ class ExpressionGenerator extends Transformer {
       transform.addOutput(
             new Asset.fromString(outputId, outputBuffer.toString()));
 
-      _transformAsset(transform, resolver);
+      transformIdentifiers(transform, resolver,
+          identifier:
+            'angular_transformers.auto_modules.defaultExpressionModule',
+          replacement: 'expressionModule',
+          importPrefix: 'generated_static_expressions',
+          generatedFilename: _generatedExpressionFilename);
     });
-  }
-
-  /**
-   * Modify the asset of to import the generated source and modify all
-   * references to angular_transformers.auto_modules.defaultExpressionModule to
-   * refer to the generated expressions.
-   */
-  void _transformAsset(Transform transform, Resolver resolver) {
-    transformIdentifiers(transform, resolver,
-        identifier: 'angular_transformers.auto_modules.defaultExpressionModule',
-        replacement: 'expressionModule',
-        importPrefix: 'generated_static_expressions',
-        generatedFilename: _generatedExpressionFilename);
   }
 
   /**

@@ -6,7 +6,7 @@ import 'package:angular_transformers/options.dart';
 import 'package:barback/barback.dart';
 import 'package:path/path.dart' as path;
 
-import 'common.dart';
+import 'refactor.dart';
 import 'metadata_extractor.dart';
 import 'resolver.dart';
 import 'resolver_transformer.dart';
@@ -76,23 +76,14 @@ class MetadataGenerator extends Transformer {
         transform.addOutput(
               new Asset.fromString(outputId, outputBuffer.toString()));
 
-      _transformAsset(transform, resolver);
+      transformIdentifiers(transform, resolver,
+          identifier: 'angular_transformers.auto_modules.defaultMetadataModule',
+          replacement: 'metadataModule',
+          importPrefix: 'generated_metadata',
+          generatedFilename: _generatedMetadataFilename);
 
       return null;
     });
-  }
-
-  /**
-   * Modify the asset of to import the generated source and modify all
-   * references to angular_transformers.auto_modules.defaultMetadataModule to
-   * refer to the generated expressions.
-   */
-  void _transformAsset(Transform transform, Resolver resolver) {
-    transformIdentifiers(transform, resolver,
-        identifier: 'angular_transformers.auto_modules.defaultMetadataModule',
-        replacement: 'metadataModule',
-        importPrefix: 'generated_metadata',
-        generatedFilename: _generatedMetadataFilename);
   }
 }
 
