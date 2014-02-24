@@ -11,13 +11,12 @@ import 'package:angular/tools/source_crawler.dart';
 import 'package:angular/tools/source_metadata_extractor.dart';
 import 'package:angular_transformers/options.dart';
 import 'package:barback/barback.dart';
+import 'package:code_transformers/resolver.dart';
 import 'package:di/di.dart';
 import 'package:di/dynamic_injector.dart';
 import 'package:path/path.dart' as path;
 
 import 'refactor.dart';
-import 'resolver.dart';
-import 'resolver_transformer.dart';
 
 const String _generatedExpressionFilename = 'generated_static_expressions.dart';
 

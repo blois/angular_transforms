@@ -3,7 +3,7 @@ library angular_transformers.metadata_extractor;
 import 'package:analyzer/src/generated/ast.dart';
 import 'package:analyzer/src/generated/element.dart';
 import 'package:barback/barback.dart';
-import 'resolver.dart';
+import 'package:code_transformers/resolver.dart';
 
 class AnnotatedType {
   final ClassElement type;

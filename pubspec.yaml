@@ -5,10 +5,11 @@ homepage: https://github.com/angular/angular_transformers.dart
 environment:
   sdk: '>=1.0.0'
 dependencies:
-  args: ">=0.9.0 <0.10.0"
   analyzer: ">=0.11.0 <0.12.0"
   angular: ">=0.9.7 <1.0.0"
+  args: ">=0.9.0 <0.10.0"
   barback: ">=0.9.0 <0.12.0"
+  code_transformers: '>=0.0.1-dev <0.1.0'
   collection: '>=0.9.1 <1.0.0'
   di: ">=0.0.32 <0.1.0"
   html5lib: '>=0.8.7 <0.10.0'
@@ -18,4 +19,4 @@ dependencies:
 dev_dependencies:
   browser: '>=0.8.7 <0.10.0'
 dependency_overrides:
-  analyzer: 0.11.10
+  analyzer: 0.12.2

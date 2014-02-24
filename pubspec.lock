@@ -4,7 +4,7 @@ packages:
   analyzer:
     description: analyzer
     source: hosted
-    version: "0.11.10"
+    version: "0.12.2"
   angular:
     description: angular
     source: hosted
@@ -21,6 +21,10 @@ packages:
     description: browser
     source: hosted
     version: "0.9.1"
+  code_transformers:
+    description: code_transformers
+    source: hosted
+    version: "0.0.1-dev"
   collection:
     description: collection
     source: hosted

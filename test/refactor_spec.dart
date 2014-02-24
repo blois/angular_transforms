@@ -3,10 +3,10 @@ library angular_transformers.test.expression_extractor_spec;
 import 'dart:async';
 import 'package:angular_transformers/options.dart';
 import 'package:angular_transformers/src/refactor.dart' as refactor;
-import 'package:angular_transformers/src/resolver_transformer.dart';
 import 'package:barback/barback.dart';
+import 'package:code_transformers/resolver.dart';
+import 'package:code_transformers/tests.dart' as tests;
 import 'jasmine_syntax.dart';
-import 'common.dart';
 
 class SimpleTransformer extends Transformer {
   final ResolverTransformer resolvers;
@@ -42,7 +42,7 @@ main() {
     ];
 
     it('should not modify files with no sourceIdentifier', () {
-      return transform(phases,
+      return tests.applyTransformers(phases,
           inputs: {
             'a|web/main.dart': '''
 library foo;
@@ -56,7 +56,7 @@ library foo;
     });
 
     it('should update references to getters', () {
-      return transform(phases,
+      return tests.applyTransformers(phases,
           inputs: {
             'source_lib|lib/source.dart': getterSource,
             'a|web/main.dart': '''
@@ -86,7 +86,7 @@ main() {
     });
 
     it('should update references to fields', () {
-      return transform(phases,
+      return tests.applyTransformers(phases,
           inputs: {
             'source_lib|lib/source.dart': fieldSource,
             'a|web/main.dart': '''
@@ -116,7 +116,7 @@ main() {
     });
 
     it('should update references to methods', () {
-      return transform(phases,
+      return tests.applyTransformers(phases,
           inputs: {
             'source_lib|lib/source.dart': methodSource,
             'a|web/main.dart': '''
@@ -146,7 +146,7 @@ main() {
     });
 
     it('should handle no imports', () {
-      return transform(phases,
+      return tests.applyTransformers(phases,
           inputs: {
             'a|web/main.dart': '''
 main() {}
@@ -160,7 +160,7 @@ main() {}
     });
 
     it('should handle no library element', () {
-      return transform(phases,
+      return tests.applyTransformers(phases,
           inputs: {
             'source_lib|lib/source.dart': methodSource,
             'a|web/main.dart': '''
@@ -188,7 +188,7 @@ main() {
     });
 
     it('should handle unresolved references', () {
-      return transform(phases,
+      return tests.applyTransformers(phases,
           inputs: {
             'source_lib|lib/source.dart': methodSource,
             'a|web/main.dart': '''

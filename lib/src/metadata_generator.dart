@@ -4,12 +4,11 @@ import 'dart:async';
 import 'package:analyzer/src/generated/element.dart';
 import 'package:angular_transformers/options.dart';
 import 'package:barback/barback.dart';
+import 'package:code_transformers/resolver.dart';
 import 'package:path/path.dart' as path;
 
 import 'refactor.dart';
 import 'metadata_extractor.dart';
-import 'resolver.dart';
-import 'resolver_transformer.dart';
 
 const String _generatedMetadataFilename = 'generated_metadata.dart';
 

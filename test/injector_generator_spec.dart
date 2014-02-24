@@ -1,12 +1,14 @@
 library angular_transformers.test.injector_generator_spec;
 
 import 'dart:async';
+
 import 'package:angular_transformers/options.dart';
-import 'package:angular_transformers/src/resolver_transformer.dart';
 import 'package:angular_transformers/src/injector_generator.dart';
 import 'package:barback/barback.dart';
+import 'package:code_transformers/resolver.dart';
+import 'package:code_transformers/tests.dart' as tests;
+
 import 'jasmine_syntax.dart';
-import 'common.dart';
 
 main() {
   describe('generator', () {
@@ -72,7 +74,7 @@ main() {
           },
           messages: [
             'warning: Foo cannot be injected because the containing file '
-            'cannot be imported. (web/main.dart 2 16)']);
+            'cannot be imported. (main.dart 2 16)']);
     });
 
     it('warns about parameterized classes', () {
@@ -95,7 +97,7 @@ main() {
           ],
           messages: [
             'warning: Parameterized is a parameterized type. '
-            '(lib/a.dart 2 18)',
+            '(package:a/a.dart 2 18)',
           ]);
     });
 
@@ -114,7 +116,7 @@ main() {
           },
           messages: [
             'warning: Bar cannot be injected because Foo<bool> is a '
-            'parameterized type. (lib/a.dart 3 18)'
+            'parameterized type. (package:a/a.dart 3 18)'
           ]);
     });
 
@@ -226,7 +228,7 @@ main() {
                   '''
             },
             messages: ['warning: Named constructors cannot be injected. '
-                '(lib/a.dart 2 20)']);
+                '(package:a/a.dart 2 20)']);
       });
 
       it('handles inject on classes', () {
@@ -260,7 +262,7 @@ main() {
                   '''
             },
             messages: ['warning: Engine cannot be injected because it does not '
-                'have a default constructor. (lib/a.dart 1 18)']);
+                'have a default constructor. (package:a/a.dart 1 18)']);
       });
 
       it('skips and warns on abstract types with no factory constructor', () {
@@ -275,7 +277,7 @@ main() {
             },
             messages: ['warning: Engine cannot be injected because it is an '
                 'abstract type with no factory constructor. '
-                '(lib/a.dart 1 18)']);
+                '(package:a/a.dart 1 18)']);
       });
 
       it('skips and warns on abstract types with implicit constructor', () {
@@ -292,7 +294,7 @@ main() {
             },
             messages: ['warning: Engine cannot be injected because it is an '
                 'abstract type with no factory constructor. '
-                '(lib/a.dart 1 18)']);
+                '(package:a/a.dart 1 18)']);
       });
 
       it('injects abstract types with factory constructors', () {
@@ -383,9 +385,9 @@ main() {
                   '''
             },
             messages: ['warning: Engine cannot be injected because parameter '
-                'type foo cannot be resolved. (lib/a.dart 3 20)',
+                'type foo cannot be resolved. (package:a/a.dart 3 20)',
                 'warning: Car cannot be injected because parameter type '
-                'foo cannot be resolved. (lib/a.dart 9 20)']);
+                'foo cannot be resolved. (package:a/a.dart 9 20)']);
       });
 
       it('supports custom annotations', () {
@@ -504,7 +506,7 @@ main() {
                   '''
             },
             messages: ['warning: _Engine cannot be injected because it is a '
-                'private type. (lib/a.dart 1 18)']);
+                'private type. (package:a/a.dart 1 18)']);
       });
 
       it('warns on multiple constructors', () {
@@ -524,11 +526,11 @@ main() {
                   '''
             },
             messages: ['warning: Engine has more than one constructor '
-                'annotated for injection. (lib/a.dart 2 18)']);
+                'annotated for injection. (package:a/a.dart 2 18)']);
       });
 
       it('transforms main', () {
-        return transform(phases,
+        return tests.applyTransformers(phases,
             inputs: {
               'a|web/main.dart': '''
 library main;
@@ -574,7 +576,7 @@ Future generates(List<List<Transformer>> phases,
   imports = imports.map((i) => '$i\n');
   generators = generators.map((t) => '  $t\n');
 
-  return transform(phases,
+  return tests.applyTransformers(phases,
       inputs: inputs,
       results: {
           'a|lib/generated_static_injector.dart': '''

@@ -5,14 +5,13 @@ import 'package:analyzer/src/generated/ast.dart';
 import 'package:analyzer/src/generated/element.dart';
 import 'package:angular_transformers/options.dart';
 import 'package:barback/barback.dart';
+import 'package:code_transformers/resolver.dart';
 import 'package:di/di.dart';
 import 'package:di/dynamic_injector.dart';
 import 'package:path/path.dart' as path;
 import 'package:source_maps/refactor.dart';
 
 import 'refactor.dart';
-import 'resolver.dart';
-import 'resolver_transformer.dart';
 
 const String _generateInjector = 'generated_static_injector.dart';
 

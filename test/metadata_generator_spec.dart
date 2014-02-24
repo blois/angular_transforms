@@ -3,10 +3,10 @@ library angular_transformers.test.metadata_generator;
 import 'dart:async';
 import 'package:angular_transformers/options.dart';
 import 'package:angular_transformers/src/metadata_generator.dart';
-import 'package:angular_transformers/src/resolver_transformer.dart';
 import 'package:barback/barback.dart';
+import 'package:code_transformers/resolver.dart';
+import 'package:code_transformers/tests.dart' as tests;
 import 'jasmine_syntax.dart';
-import 'common.dart';
 
 // Test for private types
 // Test for prefixed imports on class annotations.
@@ -81,11 +81,11 @@ main() {
           },
           messages: ['warning: Dropping annotations for Engine because the '
               'containing file cannot be imported (must be in a lib folder). '
-              '(web/a.dart 2 16)']);
+              '(a.dart 2 16)']);
     });
 
     it('should warn on multiple annotations', () {
-      return transform(phases,
+      return generates(phases,
           inputs: {
             'a|web/main.dart': '''import 'package:a/a.dart'; ''',
             'angular|lib/angular.dart': PACKAGE_ANGULAR,
@@ -100,7 +100,7 @@ main() {
                 '''
           },
           messages: ['warning: callback can only have one annotation. '
-              '(lib/a.dart 3 18)']);
+              '(package:a/a.dart 3 18)']);
     });
 
     it('should warn on multiple annotations (across getter/setter)', () {
@@ -121,7 +121,7 @@ main() {
                 '''
           },
           messages: ['warning: callback can only have one annotation. '
-              '(lib/a.dart 3 18)']);
+              '(package:a/a.dart 3 18)']);
     });
 
     it('should extract map arguments', () {
@@ -227,9 +227,11 @@ main() {
             ]
           },
           messages: [
-            'warning: Unable to serialize annotation @Foo. (lib/a.dart 2 16)',
+            'warning: Unable to serialize annotation @Foo. '
+              '(package:a/a.dart 2 16)',
             'warning: Unable to serialize annotation '
-            '@NgDirective(publishTypes: const [Foo]). (lib/a.dart 5 16)',
+              '@NgDirective(publishTypes: const [Foo]). '
+              '(package:a/a.dart 5 16)',
           ]);
     });
 
@@ -350,8 +352,9 @@ main() {
                 ''',
           },
           messages: [
-            'warning: Annotation @_Foo() is not public. (lib/a.dart 2 16)',
-            'warning: Annotation @_foo is not public. (lib/a.dart 2 16)',
+            'warning: Annotation @_Foo() is not public. '
+              '(package:a/a.dart 2 16)',
+            'warning: Annotation @_foo is not public. (package:a/a.dart 2 16)',
           ]);
     });
 
@@ -384,7 +387,7 @@ main() {
           },
           messages: [
             'warning: Annotation @Foo._private() is not public. '
-                '(lib/a.dart 2 16)',
+                '(package:a/a.dart 2 16)',
           ]);
     });
   });
@@ -421,7 +424,7 @@ Future generates(List<List<Transformer>> phases,
 
   buffer.write('$FOOTER\n');
 
-  return transform(phases,
+  return tests.applyTransformers(phases,
       inputs: inputs,
       results: {
         'a|lib/generated_metadata.dart': buffer.toString()

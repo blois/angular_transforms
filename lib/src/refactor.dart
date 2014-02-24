@@ -2,9 +2,9 @@ library angular_transformers.src.refactor;
 
 import 'package:analyzer/src/generated/ast.dart';
 import 'package:analyzer/src/generated/element.dart';
-import 'package:source_maps/refactor.dart';
 import 'package:barback/barback.dart';
-import 'resolver.dart';
+import 'package:code_transformers/resolver.dart';
+import 'package:source_maps/refactor.dart';
 
 
 /// Transforms all simple identifiers of [identifier] to be [replacement] in the
