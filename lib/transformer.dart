@@ -1,11 +1,11 @@
 library angular_transformers.transformer;
 
 import 'dart:io';
-import 'package:angular_transformers/src/injector_generator.dart';
-import 'package:angular_transformers/src/expression_generator.dart';
-import 'package:angular_transformers/src/resolver_transformer.dart';
-import 'package:angular_transformers/src/metadata_generator.dart';
 import 'package:angular_transformers/options.dart';
+import 'package:angular_transformers/src/expression_generator.dart';
+import 'package:angular_transformers/src/injector_generator.dart';
+import 'package:angular_transformers/src/metadata_generator.dart';
+import 'package:code_transformers/resolver.dart';
 import 'package:barback/barback.dart';
 import 'package:path/path.dart' as path;
 
