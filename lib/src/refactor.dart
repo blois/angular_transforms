@@ -20,11 +20,9 @@ void transformIdentifiers(Transform transform, Resolver resolver,
     String importPrefix}) {
 
   var identifierElement = resolver.getLibraryVariable(identifier);
-  if (identifierElement != null) {
-    identifierElement = identifierElement.getter;
-  } else {
-    identifierElement = resolver.getLibraryFunction(identifier);
-  }
+  identifierElement = identifierElement != null
+      ? identifierElement.getter
+      : resolver.getLibraryFunction(identifier);
 
   if (identifierElement == null) {
     transform.logger.info('Unable to resolve $identifier, not '
@@ -54,7 +52,8 @@ void commitTransaction(TextEditTransaction transaction, Transform transform) {
   if (transaction.hasEdits) {
     var printer = transaction.commit();
     var url = id.path.startsWith('lib/')
-        ? 'package:${id.package}/${id.path.substring(4)}' : id.path;
+        ? 'package:${id.package}/${id.path.substring(4)}'
+        : id.path;
     printer.build(url);
     transform.addOutput(new Asset.fromString(id, printer.text));
   } else {

@@ -39,9 +39,8 @@ class ExpressionGenerator extends Transformer {
 
   Future apply(Transform transform) {
     var resolver = resolvers.getResolver(transform.primaryInput.id);
-    return resolver.updateSources(transform).then((_) {
-      return _generateExpressions(transform, resolver);
-    });
+    return resolver.updateSources(transform).then((_) =>
+        _generateExpressions(transform, resolver));
   }
 
   Future<String> _generateExpressions(Transform transform, Resolver resolver) {
@@ -51,8 +50,7 @@ class ExpressionGenerator extends Transformer {
     _writeStaticExpressionHeader(asset.id, outputBuffer);
 
     var sourceMetadataExtractor = new SourceMetadataExtractor();
-    var directives =
-        sourceMetadataExtractor.gatherDirectiveInfo(null,
+    var directives = sourceMetadataExtractor.gatherDirectiveInfo(null,
         new _LibrarySourceCrawler(resolver.libraries));
 
     var htmlExtractor = new HtmlExpressionExtractor(directives);
@@ -60,8 +58,8 @@ class ExpressionGenerator extends Transformer {
         .forEach(htmlExtractor.parseHtml)
         .then((_) {
       var module = new Module()
-        ..type(Parser, implementedBy: DynamicParser)
-        ..type(ParserBackend, implementedBy: DartGetterSetterGen);
+          ..type(Parser, implementedBy: DynamicParser)
+          ..type(ParserBackend, implementedBy: DartGetterSetterGen);
       var injector =
           new DynamicInjector(modules: [module], allowImplicitInjection: true);
 

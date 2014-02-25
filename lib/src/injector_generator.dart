@@ -91,10 +91,9 @@ class InjectorGenerator extends Transformer {
         .expand((lib) => lib.units)
         .expand((compilationUnit) => compilationUnit.types)
         .map(_findInjectedConstructor)
-        .where((ctor) => ctor != null).toList();
-
-    constructors.addAll(_gatherInjectablesContents());
-    constructors.addAll(_gatherManuallyInjected());
+        .where((ctor) => ctor != null).toList()
+        ..addAll(_gatherInjectablesContents())
+        ..addAll(_gatherManuallyInjected());
 
     return constructors.toSet();
   }

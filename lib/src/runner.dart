@@ -211,9 +211,9 @@ Future _emitAllFiles(Barback barback, BarbackOptions options) {
     var dir = new Directory(options.outDir);
     if (dir.existsSync()) dir.deleteSync(recursive: true);
     return _emitPackagesDir(options)
-      .then((_) => _emitTransformedFiles(assets, options))
-      .then((_) => _addPackagesSymlinks(assets, options))
-      .then((_) => assets);
+        .then((_) => _emitTransformedFiles(assets, options))
+        .then((_) => _addPackagesSymlinks(assets, options))
+        .then((_) => assets);
   });
 }
 
@@ -362,8 +362,8 @@ String _consoleFormatter(LogEntry entry) {
     output.write(entry.message);
   } else {
     output.write(entry.span.getLocationMessage(entry.message,
-          useColors: useColors,
-          color: levelColor));
+        useColors: useColors,
+        color: levelColor));
   }
   return output.toString();
 }

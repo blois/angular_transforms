@@ -34,12 +34,13 @@ TransformOptions _parseSettings(BarbackSettings settings) {
       'angular.core.NgDirective',
       'angular.core.NgController',
       'angular.core.NgComponent',
-      'angular.core.NgFilter'];
-  annotations.addAll(_readStringListValue(args, 'injectable_annotations'));
+      'angular.core.NgFilter']
+      ..addAll(_readStringListValue(args, 'injectable_annotations'));
 
-  var injectedTypes = ['perf_api.Profiler',
-      'angular.core.parser.static_parser.StaticParser'];
-  injectedTypes.addAll(_readStringListValue(args, 'injected_types'));
+  var injectedTypes = [
+      'perf_api.Profiler',
+      'angular.core.parser.static_parser.StaticParser']
+      ..addAll(_readStringListValue(args, 'injected_types'));
 
   var sdkDir = _readStringValue(args, 'dart_sdk', required: false);
   if (sdkDir == null) {

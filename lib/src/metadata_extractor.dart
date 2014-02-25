@@ -207,15 +207,9 @@ class _AnnotationWriter {
       }
       print('element ${element.runtimeType} $element');
     }
-    if (expression is BooleanLiteral) {
-      sink.write(expression.value);
-      return true;
-    }
-    if (expression is DoubleLiteral) {
-      sink.write(expression.value);
-      return true;
-    }
-    if (expression is IntegerLiteral) {
+    if (expression is BooleanLiteral ||
+        expression is DoubleLiteral ||
+        expression is IntegerLiteral) {
       sink.write(expression.value);
       return true;
     }
@@ -268,8 +262,7 @@ class AnnotationExtractor {
 
     if (!visitor.hasAnnotations) return null;
 
-    var type = new AnnotatedType(cls);
-    type.annotations = visitor.classAnnotations
+    var type = new AnnotatedType(cls)..annotations = visitor.classAnnotations
         .where((annotation) {
           var element = annotation.element;
           if (element != null && !element.isPublic) {
