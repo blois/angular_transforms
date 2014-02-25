@@ -3,7 +3,7 @@
  * injector created by a pub build task.
  *
  * ## Step 1: Hook up the build step
- * Edit ```pubspec.yaml``` to add the di transformer to the list of
+ * Edit ```pubspec.yaml``` to add the angular transformer to the list of
  * transformers.
  *
  *     name: transformer_demo
@@ -32,7 +32,7 @@
  *
  * or
  *
- *     @NgInjectableServide // custom annotation provided in pubspec.yaml
+ *     @NgInjectableService // custom annotation provided in pubspec.yaml
  *     class Car {}
  *
  * Note that all injectable classes must be in source files in lib/ directories.

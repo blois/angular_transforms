@@ -39,15 +39,16 @@ class TransformOptions {
   TransformOptions({String dartEntry,
       String sdkDirectory, List<String> htmlFiles,
       List<String> injectableAnnotations, List<String> injectedTypes})
-    : dartEntry = _systemToAssetPath(dartEntry),
-      sdkDirectory = sdkDirectory,
-      htmlFiles = htmlFiles != null ? htmlFiles : [],
-      injectableAnnotations =
-          injectableAnnotations != null ? injectableAnnotations : [],
-      injectedTypes =
-          new Set.from(injectedTypes != null ? injectedTypes : []) {
-    if (sdkDirectory == null)
-      throw new ArgumentError('sdkDirectory must be provided.');
+      : dartEntry = _systemToAssetPath(dartEntry),
+        sdkDirectory = sdkDirectory,
+        htmlFiles = htmlFiles != null ? htmlFiles : [],
+        injectableAnnotations =
+            injectableAnnotations != null ? injectableAnnotations : [],
+        injectedTypes =
+            new Set.from(injectedTypes != null ? injectedTypes : []) {
+      if (sdkDirectory == null) {
+        throw new ArgumentError('sdkDirectory must be provided.');
+      }
   }
 
   // Don't need to check package as transformers only run for primary package.
@@ -56,6 +57,7 @@ class TransformOptions {
 
 /** Convert system paths to asset paths (asset paths are posix style). */
 String _systemToAssetPath(String assetPath) {
-  if (path.Style.platform != path.Style.windows) return assetPath;
-  return path.posix.joinAll(path.split(assetPath));
+  return path.Style.platform != path.Style.windows
+      ? assetPath
+      : path.posix.joinAll(path.split(assetPath));
 }
