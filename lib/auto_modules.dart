@@ -66,3 +66,6 @@ Module get defaultExpressionModule => new Module();
 
 // Empty since the default is the dynamic metadata module.
 Module get defaultMetadataModule => new Module();
+
+// Empty since the default is the template cache module.
+Module get defaultTemplateCacheModule => new Module();

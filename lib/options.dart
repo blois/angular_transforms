@@ -36,16 +36,24 @@ class TransformOptions {
    */
   final String sdkDirectory;
 
+  /**
+   * Template cache path modifiers
+   */
+  final Map<String, String> templateUriRewrites;
+
   TransformOptions({String dartEntry,
       String sdkDirectory, List<String> htmlFiles,
-      List<String> injectableAnnotations, List<String> injectedTypes})
+      List<String> injectableAnnotations, List<String> injectedTypes,
+      Map<String, String> templateUriRewrites})
     : dartEntry = _systemToAssetPath(dartEntry),
       sdkDirectory = sdkDirectory,
       htmlFiles = htmlFiles != null ? htmlFiles : [],
       injectableAnnotations =
           injectableAnnotations != null ? injectableAnnotations : [],
       injectedTypes =
-          new Set.from(injectedTypes != null ? injectedTypes : []) {
+          new Set.from(injectedTypes != null ? injectedTypes : []),
+      templateUriRewrites = templateUriRewrites != null ?
+          templateUriRewrites : {} {
     if (sdkDirectory == null)
       throw new ArgumentError('sdkDirectory must be provided.');
   }

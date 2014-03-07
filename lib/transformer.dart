@@ -52,7 +52,8 @@ TransformOptions _parseSettings(BarbackSettings settings) {
       htmlFiles: _readStringListValue(args, 'html_files'),
       injectableAnnotations: annotations,
       injectedTypes: injectedTypes,
-      sdkDirectory: sdkDir);
+      sdkDirectory: sdkDir,
+      templateUriRewrites: _readStringMapValue(args, 'template_uri_rewrites'));
 }
 
 _readStringValue(Map args, String name, {bool required: true}) {
@@ -85,9 +86,25 @@ _readStringListValue(Map args, String name) {
     error = true;
   }
   if (error) {
-    print('Invalid value for "$name" in angular_transformers .');
+    print('Invalid value for "$name" in angular_transformers.');
   }
   return results;
+}
+
+Map<String, String> _readStringMapValue(Map args, String name) {
+  var value = args[name];
+  if (value == null) return {};
+  if (value is! Map) {
+    print('Expected a map value for "$name" in angular_transformers.');
+    return {};
+  }
+  if (value.keys.any((e) => e is! String) ||
+      value.values.any((e) => e is! String)) {
+    print('Expected string keys and values for "$name" '
+        'in angular_transformers');
+    return {};
+  }
+  return value;
 }
 
 List<List<Transformer>> _createDeployPhases(TransformOptions options) {
