@@ -18,12 +18,10 @@ main() {
         injectableAnnotations: injectableAnnotations,
         sdkDirectory: dartSdkDirectory);
 
-    var resolver = new ResolverTransformer(dartSdkDirectory,
-        (asset) => options.isDartEntry(asset.id));
+    var resolvers = new Resolvers(dartSdkDirectory);
 
     var phases = [
-      [resolver],
-      [new InjectorGenerator(options, resolver)]
+      [new InjectorGenerator(options, resolvers)]
     ];
 
     it('transforms imports', () {

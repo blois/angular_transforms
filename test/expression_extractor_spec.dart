@@ -13,12 +13,10 @@ main() {
         dartEntry: 'web/main.dart',
         htmlFiles: htmlFiles,
         sdkDirectory: dartSdkDirectory);
-    var resolver = new ResolverTransformer(dartSdkDirectory,
-        (asset) => options.isDartEntry(asset.id));
+    var resolvers = new Resolvers(dartSdkDirectory);
 
     var phases = [
-      [resolver],
-      [new ExpressionGenerator(options, resolver)]
+      [new ExpressionGenerator(options, resolvers)]
     ];
 
     it('should extract expressions', () {

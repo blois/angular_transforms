@@ -8,24 +8,22 @@ import 'package:code_transformers/resolver.dart';
 import 'package:code_transformers/tests.dart' as tests;
 import 'jasmine_syntax.dart';
 
-class SimpleTransformer extends Transformer {
-  final ResolverTransformer resolvers;
+class SimpleTransformer extends ResolverTransformer {
   final AssetId primaryAsset;
 
-  SimpleTransformer(this.resolvers, this.primaryAsset);
+  SimpleTransformer(Resolvers resolvers, this.primaryAsset) {
+    this.resolvers = resolvers;
+  }
 
   Future<bool> isPrimary(Asset input) =>
     new Future.value(input.id == primaryAsset);
 
-  Future apply(Transform transform) {
-    var resolver = resolvers.getResolver(transform.primaryInput.id);
+  applyResolver(Transform transform, Resolver resolver) {
     refactor.transformIdentifiers(transform, resolver,
-          identifier: 'source_lib.sourceIdentifier',
-          replacement: 'generatedIdentifier',
-          importPrefix: 'generated_code',
-          generatedFilename: 'lib/generated.dart');
-
-    return new Future.value(null);
+        identifier: 'source_lib.sourceIdentifier',
+        replacement: 'generatedIdentifier',
+        importPrefix: 'generated_code',
+        generatedFilename: 'lib/generated.dart');
   }
 }
 
@@ -33,12 +31,10 @@ main() {
   describe('refactor lib', () {
     var entryPoint = new AssetId('a', 'web/main.dart');
 
-    var resolver = new ResolverTransformer(dartSdkDirectory,
-        (asset) => asset.id == entryPoint);
+    var resolvers = new Resolvers(dartSdkDirectory);
 
     var phases = [
-      [resolver],
-      [new SimpleTransformer(resolver, entryPoint)]
+      [new SimpleTransformer(resolvers, entryPoint)]
     ];
 
     it('should not modify files with no sourceIdentifier', () {

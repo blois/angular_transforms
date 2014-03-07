@@ -15,42 +15,41 @@ import 'refactor.dart';
 
 const String _generateInjector = 'generated_static_injector.dart';
 
-class InjectorGenerator extends Transformer {
+class InjectorGenerator extends ResolverTransformer {
   final TransformOptions options;
-  final ResolverTransformer resolvers;
   TransformLogger _logger;
   Resolver _resolver;
   List<TopLevelVariableElement> _injectableMetaConsts;
   List<ConstructorElement> _injectableMetaConstructors;
 
-  InjectorGenerator(this.options, this.resolvers);
+  InjectorGenerator(this.options, Resolvers resolvers) {
+    this.resolvers = resolvers;
+  }
 
   Future<bool> isPrimary(Asset input) =>
       new Future.value(options.isDartEntry(input.id));
 
-  Future apply(Transform transform) {
+  applyResolver(Transform transform, Resolver resolver) {
     _logger = transform.logger;
-    _resolver = this.resolvers.getResolver(transform.primaryInput.id);
+    _resolver = resolver;
 
-    return _resolver.updateSources(transform).then((_) {
-      _resolveInjectableMetadata();
-      var constructors = _gatherConstructors();
+    _resolveInjectableMetadata();
+    var constructors = _gatherConstructors();
 
-      var injectLibContents = _generateInjectLibrary(constructors);
+    var injectLibContents = _generateInjectLibrary(constructors);
 
-      var outputId = new AssetId(transform.primaryInput.id.package,
-          'lib/$_generateInjector');
-      transform.addOutput(new Asset.fromString(outputId, injectLibContents));
+    var outputId = new AssetId(transform.primaryInput.id.package,
+        'lib/$_generateInjector');
+    transform.addOutput(new Asset.fromString(outputId, injectLibContents));
 
-      transformIdentifiers(transform, _resolver,
-          identifier: 'angular_transformers.auto_modules.defaultInjector',
-          replacement: 'createStaticInjector',
-          importPrefix: 'generated_static_injector',
-          generatedFilename: _generateInjector);
+    transformIdentifiers(transform, _resolver,
+        identifier: 'angular_transformers.auto_modules.defaultInjector',
+        replacement: 'createStaticInjector',
+        importPrefix: 'generated_static_injector',
+        generatedFilename: _generateInjector);
 
-      _logger = null;
-      _resolver = null;
-    });
+    _logger = null;
+    _resolver = null;
   }
 
   /** Default list of injectable consts */

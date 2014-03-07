@@ -30,7 +30,7 @@ packages:
   code_transformers:
     description: code_transformers
     source: hosted
-    version: "0.0.1-dev"
+    version: "0.0.1-dev.2"
   collection:
     description: collection
     source: hosted

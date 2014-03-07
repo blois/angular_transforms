@@ -28,23 +28,17 @@ const String _generatedExpressionFilename = 'generated_static_expressions.dart';
  * expressions and modify all references to NG_EXPRESSION_MODULE to refer to
  * the generated expressions.
  */
-class ExpressionGenerator extends Transformer {
+class ExpressionGenerator extends ResolverTransformer {
   final TransformOptions options;
-  final ResolverTransformer resolvers;
 
-  ExpressionGenerator(this.options, this.resolvers);
+  ExpressionGenerator(this.options, Resolvers resolvers) {
+    this.resolvers = resolvers;
+  }
 
   Future<bool> isPrimary(Asset input) =>
       new Future.value(options.isDartEntry(input.id));
 
-  Future apply(Transform transform) {
-    var resolver = resolvers.getResolver(transform.primaryInput.id);
-    return resolver.updateSources(transform).then((_) {
-      return _generateExpressions(transform, resolver);
-    });
-  }
-
-  Future<String> _generateExpressions(Transform transform, Resolver resolver) {
+  Future applyResolver(Transform transform, Resolver resolver) {
     var asset = transform.primaryInput;
     var outputBuffer = new StringBuffer();
 

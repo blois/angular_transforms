@@ -17,12 +17,10 @@ main() {
         dartEntry: 'web/main.dart',
         sdkDirectory: dartSdkDirectory);
 
-    var resolver = new ResolverTransformer(dartSdkDirectory,
-        (asset) => options.isDartEntry(asset.id));
+    var resolvers = new Resolvers(dartSdkDirectory);
 
     var phases = [
-      [resolver],
-      [new MetadataGenerator(options, resolver)]
+      [new MetadataGenerator(options, resolvers)]
     ];
 
     it('should extract member metadata', () {

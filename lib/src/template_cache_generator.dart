@@ -13,17 +13,17 @@ import 'refactor.dart';
 
 /// Transformer which gathers all templates from the Angular application and
 /// generates a single cache file for them.
-class TemplateCacheGenerator extends Transformer {
+class TemplateCacheGenerator extends ResolverTransformer {
   final TransformOptions options;
-  final ResolverTransformer resolvers;
 
-  TemplateCacheGenerator(this.options, this.resolvers);
+  TemplateCacheGenerator(this.options, Resolvers resolvers) {
+    this.resolvers = resolvers;
+  }
 
   Future<bool> isPrimary(Asset input) =>
       new Future.value(options.isDartEntry(input.id));
 
-  Future apply(Transform transform) {
-    var resolver = resolvers.getResolver(transform.primaryInput.id);
+  Future applyResolver(Transform transform, Resolver resolver) {
     return new _Processor(transform, resolver, options).process();
   }
 }
@@ -48,13 +48,7 @@ class _Processor {
     }
   }
 
-  process() {
-    return resolver.updateSources(transform).then((_) {
-      return generateCache(transform, resolver);
-    });
-  }
-
-  Future generateCache(Transform transform, Resolver resolver) {
+  Future process() {
     var asset = transform.primaryInput;
     var outputBuffer = new StringBuffer();
 
@@ -79,7 +73,6 @@ class _Processor {
           replacement: 'templateCacheModule',
           importPrefix: 'generated_template_cache',
           generatedFilename: generatedFilename);
-      return null;
     });
   }
 

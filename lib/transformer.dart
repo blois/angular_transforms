@@ -108,12 +108,10 @@ Map<String, String> _readStringMapValue(Map args, String name) {
 }
 
 List<List<Transformer>> _createDeployPhases(TransformOptions options) {
-  var resolver = new ResolverTransformer(options.sdkDirectory,
-      (asset) => options.isDartEntry(asset.id));
+  var resolvers = new Resolvers(options.sdkDirectory);
   return [
-    [resolver],
-    [new ExpressionGenerator(options, resolver)],
-    [new InjectorGenerator(options, resolver)],
-    [new MetadataGenerator(options, resolver)],
+    [new ExpressionGenerator(options, resolvers)],
+    [new InjectorGenerator(options, resolvers)],
+    [new MetadataGenerator(options, resolvers)],
   ];
 }

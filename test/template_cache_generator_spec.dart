@@ -19,12 +19,10 @@ main() {
         sdkDirectory: dartSdkDirectory,
         templateUriRewrites: templateUriRewrites);
 
-    var resolver = new ResolverTransformer(dartSdkDirectory,
-        (asset) => options.isDartEntry(asset.id));
+    var resolvers = new Resolvers(dartSdkDirectory);
 
     var phases = [
-      [resolver],
-      [new TemplateCacheGenerator(options, resolver)]
+      [new TemplateCacheGenerator(options, resolvers)]
     ];
 
     it('should extract templateUrls', () {
